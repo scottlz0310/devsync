@@ -21,6 +21,11 @@
 
 設定ができたら、実際にコマンドを動かす部分を作ります。
 
+- [ ] **Secrets管理 (Bitwarden連携)**
+    - [ ] `config` に Secrets 設定を追加
+    - [ ] `bw` コマンドラッパー実装 (Unlock / Get Item)
+    - [ ] コマンド実行前の環境変数注入ロジック (Middleware/PreRun)
+
 - [ ] **Updater インターフェース定義**
     - [ ] `Check()`, `Update()`, `Name()` などの共通メソッド定義
 - [ ] **主要マネージャの実装 (PoC)**

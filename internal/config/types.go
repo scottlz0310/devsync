@@ -6,6 +6,14 @@ type Config struct {
 	Control ControlConfig `mapstructure:"control" yaml:"control"`
 	Repo    RepoConfig    `mapstructure:"repo" yaml:"repo"`
 	Sys     SysConfig     `mapstructure:"sys" yaml:"sys"`
+	Secrets SecretsConfig `mapstructure:"secrets" yaml:"secrets"`
+}
+
+// SecretsConfig はシークレット管理に関する設定です。
+type SecretsConfig struct {
+	Enabled  bool     `mapstructure:"enabled" yaml:"enabled"`
+	Provider string   `mapstructure:"provider" yaml:"provider"` // "bitwarden"
+	Items    []string `mapstructure:"items" yaml:"items"`       // Bitwarden Item IDs or Names
 }
 
 // ControlConfig は実行制御に関する設定です。

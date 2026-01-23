@@ -136,9 +136,13 @@ sys:
     dotfiles: "https://github.com/user/dotfiles.git"
 
 secrets:
-  enabled: false
+  enabled: true
   provider: "bitwarden"
-  # ... 省略
+  # コマンド実行前にロック解除を行い、環境変数に注入する
+  env:
+    # 環境変数名: "BitwardenアイテムID" (または検索クエリ)
+    GITHUB_TOKEN: "github-access-token-item-id"
+    NPM_TOKEN: "npm-auth-token-id"
 ```
 
 ---

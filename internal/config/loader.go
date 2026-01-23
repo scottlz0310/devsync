@@ -92,4 +92,9 @@ func setDefaults(v *viper.Viper) {
 	// Sys defaults (managers are enabled per environment usually, but defaults can be empty)
 	v.SetDefault("sys.enable", []string{})
 	v.SetDefault("sys.managers", map[string]interface{}{})
+
+	// Secrets
+	v.SetDefault("secrets.enabled", false)
+	v.SetDefault("secrets.provider", "bitwarden")
+	v.SetDefault("secrets.items", []string{})
 }
