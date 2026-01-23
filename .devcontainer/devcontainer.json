@@ -2,7 +2,9 @@
 	"name": "Go",
 	"image": "mcr.microsoft.com/devcontainers/base:debian",
 	"features": {
-		"ghcr.io/devcontainers/features/go:1": {},
+		"ghcr.io/devcontainers/features/go:1": {
+			"version": "1.25.6"
+		},
 		"ghcr.io/devcontainers/features/github-cli:1": {},
 		"ghcr.io/devcontainers/features/node:1": {
 			"version": "lts",
