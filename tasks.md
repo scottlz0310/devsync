@@ -26,15 +26,18 @@
     - [x] `bw` コマンドラッパー実装 (Unlock / Get Item)
     - [x] コマンド実行前の環境変数注入ロジック (Middleware/PreRun)
 
-- [ ] **Updater インターフェース定義**
-    - [ ] `Check()`, `Update()`, `Name()` などの共通メソッド定義
-- [ ] **主要マネージャの実装 (PoC)**
-    - [ ] `apt` (Debian/Ubuntu)
-    - [ ] `brew` (macOS/Linux)
-    - [ ] `go` (Go binaries)
-- [ ] **`sys update` コマンド実装**
-    - [ ] 設定に基づいて有効なマネージャをリストアップ
-    - [ ] 順次実行 (まずは並列なしで確実に動くもの)
+- [x] **Updater インターフェース定義**
+    - [x] `Check()`, `Update()`, `Name()` などの共通メソッド定義
+    - [x] レジストリパターンによる拡張可能な設計
+    - [x] `GetEnabled()` で設定に基づくマネージャ取得
+- [x] **主要マネージャの実装 (PoC)**
+    - [x] `apt` (Debian/Ubuntu)
+    - [x] `brew` (macOS/Linux)
+    - [x] `go` (Go binaries)
+- [x] **`sys update` コマンド実装**
+    - [x] 設定に基づいて有効なマネージャをリストアップ
+    - [x] 順次実行 (まずは並列なしで確実に動くもの)
+    - [x] `sys list` コマンドで利用可能マネージャを一覧表示
 
 ## Phase 4: 並列実行とリポジトリ機能
 

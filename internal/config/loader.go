@@ -66,6 +66,48 @@ func Get() *Config {
 	return currentConfig
 }
 
+// Default はデフォルト設定を返します。
+// 設定ファイルが存在しない場合などに使用します。
+func Default() *Config {
+	home, _ := os.UserHomeDir()
+	defaultRoot := filepath.Join(home, "src")
+	if home == "" {
+		defaultRoot = "./src"
+	}
+
+	return &Config{
+		Version: 1,
+		Control: ControlConfig{
+			Concurrency: 8,
+			Timeout:     "10m",
+			DryRun:      false,
+		},
+		Repo: RepoConfig{
+			Root: defaultRoot,
+			GitHub: GitHubConfig{
+				Protocol: "https",
+			},
+			Sync: RepoSyncConfig{
+				AutoStash: true,
+				Prune:     true,
+			},
+			Cleanup: RepoCleanupConfig{
+				Enabled:         true,
+				Target:          []string{"merged", "squashed"},
+				ExcludeBranches: []string{"main", "master", "develop"},
+			},
+		},
+		Sys: SysConfig{
+			Enable:   []string{},
+			Managers: map[string]ManagerConfig{},
+		},
+		Secrets: SecretsConfig{
+			Enabled:  false,
+			Provider: "bitwarden",
+		},
+	}
+}
+
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("version", 1)
 
