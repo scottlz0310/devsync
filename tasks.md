@@ -17,7 +17,7 @@
     - [x] コンテナ内 (`IsContainer`) かホストか判定するロジックの実装
     - [x] 推奨パッケージマネージャのリコメンドロジック実装
 
-## Phase 3: システム更新機能 (Sys) - 基礎
+## Phase 3: システム更新機能 (Sys) - 基礎 (Completed)
 
 設定ができたら、実際にコマンドを動かす部分を作ります。
 
@@ -30,28 +30,64 @@
     - [x] `Check()`, `Update()`, `Name()` などの共通メソッド定義
     - [x] レジストリパターンによる拡張可能な設計
     - [x] `GetEnabled()` で設定に基づくマネージャ取得
-- [x] **主要マネージャの実装 (PoC)**
+- [x] **主要マネージャの実装**
     - [x] `apt` (Debian/Ubuntu)
     - [x] `brew` (macOS/Linux)
     - [x] `go` (Go binaries)
+    - [x] `npm` (Node.js グローバルパッケージ)
+    - [x] `pipx` (Python CLI ツール)
+    - [x] `cargo` (Rust ツール)
+    - [x] `snap` (Snap パッケージ)
 - [x] **`sys update` コマンド実装**
     - [x] 設定に基づいて有効なマネージャをリストアップ
     - [x] 順次実行 (まずは並列なしで確実に動くもの)
     - [x] `sys list` コマンドで利用可能マネージャを一覧表示
 
-## Phase 4: 並列実行とリポジトリ機能
+## Phase 4: 並列実行エンジン (Next)
 
-- [ ] **並列実行エンジン**
-    - [ ] `errgroup` または WorkerPool による並列制御
-    - [ ] プログレスバー表示 (Bubble Tea または mpb)
-- [ ] **リポジトリ管理 (Repo)**
-    - [ ] `gh` CLI または GitHub API との連携
-    - [ ] `repo update` (Clone/Pull)
+優先度: 高。`sys update` の高速化と、今後の `repo update` への基盤。
+
+- [ ] **並列実行基盤 (`internal/runner`)**
+    - [ ] `errgroup` + semaphore による並列制御
+    - [ ] Context cancel / Timeout 管理
+    - [ ] 結果集計（成功/失敗/スキップ）
+- [ ] **`sys update` への組み込み**
+    - [ ] `--jobs N` フラグで並列数を指定
+    - [ ] マネージャごとの依存関係考慮（apt は単独実行など）
+
+## Phase 5: リポジトリ管理 (Repo)
+
+旧ツール `Setup-Repository` の機能移植。
+
+- [ ] **リポジトリスキャン**
+    - [ ] 設定の `repo.roots` からリポジトリを検出
+    - [ ] `.git` ディレクトリの存在確認
+- [ ] **`repo update` コマンド**
+    - [ ] `git fetch` + `git pull --rebase` の実行
+    - [ ] サブモジュール更新対応
+    - [ ] 並列実行エンジンとの統合
+- [ ] **`repo list` コマンド**
+    - [ ] 管理下リポジトリの一覧表示
+    - [ ] ステータス表示（クリーン/ダーティ/未プッシュ）
+
+## Phase 6: TUI 進捗表示
+
+ユーザー体験の向上。並列実行と組み合わせて効果を発揮。
+
+- [ ] **Bubble Tea による進捗UI**
+    - [ ] マルチプログレスバー表示
+    - [ ] リアルタイムログ出力
+    - [ ] エラー時のハイライト表示
+- [ ] **既存コマンドへの統合**
+    - [ ] `sys update` への適用
+    - [ ] `repo update` への適用
 
 ## Backlog / 改善
 
 - [x] README.md と --help の更新（実装済みコマンドに合わせた使用方法の記載）
-- [ ] TUI (Bubble Tea) によるリッチな進捗表示
+- [x] CHANGELOG.md の作成
 - [ ] `repo cleanup` (マージ済みブランチ削除) の移植
+- [ ] `config show` / `config validate` コマンド
 - [ ] 通知機能の実装
 - [ ] Windows (Winget/Scoop) 対応検証
+- [ ] GoReleaser によるリリース自動化
