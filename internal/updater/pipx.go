@@ -89,7 +89,9 @@ func (p *PipxUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRe
 		return result, fmt.Errorf("pipx upgrade-all に失敗: %w", err)
 	}
 
-	result.UpdatedCount = checkResult.AvailableUpdates
+	// pipx upgrade-all は個別のパッケージ結果を返さないため、
+	// 処理したパッケージ数を UpdatedCount とする
+	result.UpdatedCount = len(checkResult.Packages)
 	result.Packages = checkResult.Packages
 	result.Message = fmt.Sprintf("%d 件のパッケージを確認・更新しました", result.UpdatedCount)
 
