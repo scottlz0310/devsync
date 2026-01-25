@@ -11,8 +11,27 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "devsync",
 	Short: "DevSync: 開発環境運用ツール",
-	Long: `DevSync は開発環境の運用作業（リポジトリ管理、システム更新など）を統合する CLI ツールです。
-日本語環境での利用を前提に設計されています。`,
+	Long: `DevSync は開発環境の運用作業を統合する CLI ツールです。
+
+日次運用:
+  devsync run           Bitwarden解錠→環境変数読込→システム更新を実行
+
+システム更新:
+  devsync sys update    パッケージマネージャで一括更新
+  devsync sys list      利用可能なマネージャを一覧表示
+
+環境変数:
+  devsync env export    Bitwardenから環境変数をシェル形式で出力
+  devsync env run       環境変数を注入してコマンドを実行
+
+設定管理:
+  devsync config init   対話形式で設定ファイルを生成
+  devsync doctor        依存ツールと環境の診断
+
+使用例:
+  eval "$(devsync env export)"    # シェルに環境変数を読み込み
+  devsync env run npm run build   # 環境変数を注入してビルド
+  devsync sys update -n           # ドライラン（計画のみ表示）`,
 }
 
 // Execute はコマンド実行のエントリーポイントです

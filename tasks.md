@@ -50,6 +50,7 @@
 
 ## Backlog / 改善
 
+- [x] README.md と --help の更新（実装済みコマンドに合わせた使用方法の記載）
 - [ ] TUI (Bubble Tea) によるリッチな進捗表示
 - [ ] `repo cleanup` (マージ済みブランチ削除) の移植
 - [ ] 通知機能の実装

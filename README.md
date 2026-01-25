@@ -17,26 +17,38 @@ DevSync は、開発環境の運用作業を統合・一元化するためのク
 - **インタラクティブ UI**: Survey (ウィザード) / Bubble Tea (TUI)
 - **並列制御**: errgroup + semaphore
 
-## 📋 機能 (v0.1 計画)
+## 📋 コマンド一覧
 
-### コアコマンド
-- `devsync run`: 設定ファイルによるカスタム化されたコマンドを実行します。（毎日の実行用）
-- `devsync tool update`: システムおよびリポジトリの更新を一括実行します。
-- `devsync doctor`: 依存関係や潜在的な問題を診断します。
+### メインコマンド
+```
+devsync run           # 日次の統合タスクを実行（Bitwarden解錠→環境変数読込→更新処理）
+devsync doctor        # 依存ツール（git, bw等）と環境設定の診断
+```
 
-### リポジトリ管理
-- `devsync repo update`: 管理下のリポジトリを更新します。
-- `devsync repo list`: 管理下のリポジトリ一覧を表示します。
+### システム更新 (`sys`)
+```
+devsync sys update    # パッケージマネージャで一括更新
+devsync sys update -n # ドライラン（計画のみ表示）
+devsync sys list      # 利用可能なパッケージマネージャを一覧表示
+```
 
-### システム管理
-- `devsync sys update`: システム更新タスクを実行します。
+**対応パッケージマネージャ**: apt, brew, go, npm, snap, pipx, cargo
 
-### 設定
-- `devsync config init`: 対話形式のウィザードで設定ファイルを生成します。
-- `devsync config show`: 現在の設定を表示します。
-### 環境変数
-- `devsync env export`: Bitwardenから環境変数を取得し、シェルにエクスポートします。
-- `devsync env run`: Bitwardenから環境変数を注入してコマンドを実行します。
+### 環境変数 (`env`)
+```
+devsync env export    # Bitwardenから環境変数をシェル形式でエクスポート
+devsync env run       # 環境変数を注入してコマンドを実行
+```
+
+### 設定管理 (`config`)
+```
+devsync config init       # 対話形式のウィザードで設定ファイルを生成
+devsync config uninstall  # シェル設定からdevsyncを削除
+```
+
+### 予定機能
+- `devsync repo update`: 管理下のリポジトリを更新（未実装）
+- `devsync repo list`: 管理下のリポジトリ一覧を表示（未実装）
 
 ## 🔑 環境変数の使用
 
