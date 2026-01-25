@@ -23,12 +23,13 @@ linters:
     - unconvert
     - unparam
     - nakedret
-    - prealloc
-    - exportloopref
+    # prealloc はスライスの事前割り当てを推奨するが、可読性を優先して無効化
+    # - prealloc
     - nilerr
     - nolintlint
     - whitespace
-    - wsl
+    # wsl は空行スタイルの好みであり、多くの警告を出すため無効化
+    # - wsl
     # 追加：複雑度・品質チェック
     - gocyclo       # 循環的複雑度
     - gocognit      # 認知複雑度
@@ -44,8 +45,12 @@ linters-settings:
     check-blank: true
 
   govet:
-    check-shadowing: true
     enable-all: true
+    disable:
+      # fieldalignment は構造体のメモリ配置を最適化するが、可読性を優先して無効化
+      - fieldalignment
+      # shadow は err のシャドウイングで大量の警告が出るが、Go では if err := ... のパターンが一般的
+      - shadow
 
   gofmt:
     simplify: true
@@ -53,6 +58,11 @@ linters-settings:
   gosec:
     excludes:
       - G104 # Audit errors not checked
+      - G204 # Subprocess launched with variable - 本ツールはコマンド実行が目的
+      - G301 # Directory permissions - シェルスクリプト用ディレクトリは755が標準
+      - G302 # File permissions - シェルスクリプトは644が標準
+      - G304 # File inclusion via variable - 設定ファイル読み込みは意図した動作
+      - G306 # WriteFile permissions - シェルスクリプトは644が標準
     severity: medium
     confidence: medium
 
@@ -63,6 +73,12 @@ linters-settings:
   # 認知複雑度の閾値
   gocognit:
     min-complexity: 20
+
+  # 定数化すべき文字列の閾値
+  goconst:
+    min-len: 5        # 5文字未満は無視
+    min-occurrences: 4 # 4回以上出現で警告（デフォルト3）
+    ignore-tests: true # テストファイルは無視
 
   # 重複コードの閾値（トークン数）
   dupl:
@@ -86,12 +102,14 @@ linters-settings:
       - name: error-return
       - name: error-strings
       - name: error-naming
-      - name: exported
+      # exportedは大量の警告を出すため無効化（インターフェース実装メソッドにコメントは不要）
+      # - name: exported
       - name: if-return
       - name: increment-decrement
       - name: var-naming
       - name: var-declaration
-      - name: package-comments
+      # package-commentsは各パッケージにdocを要求するが、内部パッケージでは不要
+      # - name: package-comments
       - name: range
       - name: receiver-naming
       - name: time-naming

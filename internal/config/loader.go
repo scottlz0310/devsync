@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,7 +41,8 @@ func Load() (*Config, error) {
 
 	// 設定ファイルの読み込み
 	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if !errors.As(err, &configFileNotFoundError) {
 			// 設定ファイルが存在するが読み込めない場合はエラー
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
@@ -60,16 +62,23 @@ func Load() (*Config, error) {
 // Load が呼ばれていない場合は nil を返す可能性があります。
 func Get() *Config {
 	if currentConfig == nil {
-		// 未ロードの場合はデフォルトロードを試みる（エラーは無視）
-		_, _ = Load()
+		// 未ロードの場合はデフォルトロードを試みる
+		// エラーは意図的に無視（設定ファイルがなくても動作させるため）
+		//nolint:errcheck // 設定ファイル未存在は許容
+		Load()
 	}
+
 	return currentConfig
 }
 
 // Default はデフォルト設定を返します。
 // 設定ファイルが存在しない場合などに使用します。
 func Default() *Config {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = ""
+	}
+
 	defaultRoot := filepath.Join(home, "src")
 	if home == "" {
 		defaultRoot = "./src"
@@ -117,11 +126,16 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("control.dry_run", false)
 
 	// Repo
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = ""
+	}
+
 	defaultRoot := filepath.Join(home, "src")
 	if home == "" {
 		defaultRoot = "./src"
 	}
+
 	v.SetDefault("repo.root", defaultRoot)
 	v.SetDefault("repo.github.owner", "")
 	v.SetDefault("repo.github.protocol", "https")

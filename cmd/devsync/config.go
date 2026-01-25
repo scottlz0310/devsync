@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +14,13 @@ import (
 
 	"github.com/scottlz0310/devsync/internal/env"
 	"github.com/spf13/cobra"
+)
+
+// シェルタイプ定数
+const (
+	shellPowerShell = "powershell"
+	shellZsh        = "zsh"
+	shellBash       = "bash"
 )
 
 var configCmd = &cobra.Command{
@@ -102,7 +110,7 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 
 	// 質問実行
 	if err := survey.Ask(questions, &answers); err != nil {
-		if err == terminal.InterruptErr {
+		if errors.Is(err, terminal.InterruptErr) {
 			fmt.Println("キャンセルしました。")
 			return nil
 		}
@@ -191,16 +199,6 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// Helper to check slice containment (if needed)
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
-
 // generateShellInit は検出されたシェルに応じた初期化スクリプトを生成します
 func generateShellInit(home string) error {
 	shell := detectShell()
@@ -221,13 +219,13 @@ func generateShellInit(home string) error {
 	var scriptContent string
 
 	switch shell {
-	case "powershell", "pwsh":
+	case shellPowerShell, "pwsh":
 		scriptPath = filepath.Join(configDir, "init.ps1")
 		scriptContent = getPowerShellScript(exePath)
-	case "zsh":
+	case shellZsh:
 		scriptPath = filepath.Join(configDir, "init.zsh")
 		scriptContent = getZshScript(exePath)
-	case "bash":
+	case shellBash:
 		scriptPath = filepath.Join(configDir, "init.bash")
 		scriptContent = getBashScript(exePath)
 	default:
@@ -236,7 +234,7 @@ func generateShellInit(home string) error {
 	}
 
 	// スクリプトを保存
-	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0644); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0o644); err != nil {
 		return fmt.Errorf("スクリプトファイルの保存に失敗: %w", err)
 	}
 
@@ -247,22 +245,22 @@ func generateShellInit(home string) error {
 	var sourceCommand string
 
 	switch shell {
-	case "powershell", "pwsh":
+	case shellPowerShell, "pwsh":
 		// PowerShellプロファイルのパスを取得
 		profilePath, err := getPowerShellProfilePath(shell)
 		if err != nil {
 			fmt.Printf("\n⚠️  PowerShell プロファイルパスの取得に失敗しました: %v\n", err)
 			fmt.Printf("次のコマンドを PowerShell のプロファイル ($PROFILE) に手動で追加してください:\n")
-			fmt.Printf("\n  . \"%s\"\n", scriptPath)
+			fmt.Printf("\n  . %q\n", scriptPath)
 			return nil
 		}
 		rcFilePath = profilePath
 		// PowerShellではパスにスペースが含まれる可能性があるため引用符で囲む
-		sourceCommand = fmt.Sprintf(". \"%s\"", scriptPath)
-	case "zsh":
+		sourceCommand = fmt.Sprintf(". %q", scriptPath)
+	case shellZsh:
 		rcFilePath = filepath.Join(home, ".zshrc")
 		sourceCommand = fmt.Sprintf("source %s", scriptPath)
-	case "bash":
+	case shellBash:
 		rcFilePath = filepath.Join(home, ".bashrc")
 		sourceCommand = fmt.Sprintf("source %s", scriptPath)
 	default:
@@ -288,7 +286,7 @@ func generateShellInit(home string) error {
 	}
 
 	// rcファイルに追加
-	if err := appendToRcFile(rcFilePath, scriptPath, sourceCommand); err != nil {
+	if err := appendToRcFile(rcFilePath, sourceCommand); err != nil {
 		return fmt.Errorf("rcファイルへの追加に失敗: %w", err)
 	}
 
@@ -348,7 +346,7 @@ func getPowerShellProfilePath(shell string) (string, error) {
 	// プロファイルの親ディレクトリが存在しない場合は作成
 	profileDir := filepath.Dir(profilePath)
 	if _, err := os.Stat(profileDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(profileDir, 0755); err != nil {
+		if err := os.MkdirAll(profileDir, 0o755); err != nil {
 			return "", fmt.Errorf("プロファイルディレクトリの作成に失敗: %w", err)
 		}
 	}
@@ -357,7 +355,7 @@ func getPowerShellProfilePath(shell string) (string, error) {
 }
 
 // appendToRcFile はrcファイルにsource行を追加します（マーカー付きで冪等性を保証）
-func appendToRcFile(rcFilePath, scriptPath, sourceCommand string) error {
+func appendToRcFile(rcFilePath, sourceCommand string) error {
 	const (
 		markerBegin = "# >>> devsync >>>"
 		markerEnd   = "# <<< devsync <<<"
@@ -381,11 +379,16 @@ func appendToRcFile(rcFilePath, scriptPath, sourceCommand string) error {
 	addition := fmt.Sprintf("\n%s\n%s\n%s\n", markerBegin, sourceCommand, markerEnd)
 
 	// ファイルに追記
-	f, err := os.OpenFile(rcFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(rcFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	if _, err := f.WriteString(addition); err != nil {
 		return err
@@ -503,23 +506,23 @@ func runConfigUninstall(cmd *cobra.Command, args []string) error {
 	var rcFilePath string
 
 	switch shell {
-	case "powershell", "pwsh":
-		profilePath, err := getPowerShellProfilePath(shell)
-		if err != nil {
-			fmt.Printf("⚠️  PowerShell プロファイルパスの取得に失敗しました: %v\n", err)
+	case shellPowerShell, "pwsh":
+		profilePath, profileErr := getPowerShellProfilePath(shell)
+		if profileErr != nil {
+			fmt.Printf("⚠️  PowerShell プロファイルパスの取得に失敗しました: %v\n", profileErr)
 			return nil
 		}
 		rcFilePath = profilePath
-	case "zsh":
+	case shellZsh:
 		rcFilePath = filepath.Join(home, ".zshrc")
-	case "bash":
+	case shellBash:
 		rcFilePath = filepath.Join(home, ".bashrc")
 	default:
 		return fmt.Errorf("未対応のシェル: %s", shell)
 	}
 
 	// ファイルが存在するか確認
-	if _, err := os.Stat(rcFilePath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(rcFilePath); os.IsNotExist(statErr) {
 		fmt.Printf("設定ファイルが見つかりません: %s\n", rcFilePath)
 		return nil
 	}
@@ -581,7 +584,7 @@ func removeDevsyncBlock(rcFilePath string) (bool, error) {
 
 	// ファイルに書き戻す
 	newContent := strings.Join(newLines, "\n")
-	if err := os.WriteFile(rcFilePath, []byte(newContent), 0644); err != nil {
+	if err := os.WriteFile(rcFilePath, []byte(newContent), 0o644); err != nil {
 		return false, err
 	}
 

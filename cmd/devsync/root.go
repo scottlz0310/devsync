@@ -47,8 +47,7 @@ func init() {
 }
 
 func initConfig() {
-	if _, err := config.Load(); err != nil {
-		// 設定ファイルが存在しない場合などはエラーを無視
-		// (初回実行時など)
-	}
+	// 設定ファイルが存在しない場合（初回実行時など）はエラーを無視して続行
+	//nolint:errcheck // 初回実行時に設定ファイルがない場合のエラーは意図的に無視する
+	config.Load()
 }

@@ -63,6 +63,13 @@
 - Go 1.25 による開発環境
 - Cobra CLI フレームワークの採用
 - Viper による設定管理
+- Taskfile.yml によるタスクランナー（Windows互換）
+- golangci-lint による静的解析
+  - 循環的複雑度 (gocyclo)
+  - 認知複雑度 (gocognit)
+  - 重複コード検出 (dupl)
+  - エラーハンドリング (errorlint)
+  - その他品質チェック
 - GitHub Actions CI/CD（予定）
 - DevContainer 対応
 

@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+// Bitwarden ステータス定数
+const (
+	statusUnlocked = "unlocked"
+)
+
 // BitwardenItem は `bw list items` のJSON出力の構造体です。
 type BitwardenItem struct {
 	ID     string                 `json:"id"`
@@ -60,7 +65,7 @@ func Unlock() error {
 	// 既にセッションがある場合は状態を確認し、アンロック済みなら何もしない
 	if os.Getenv("BW_SESSION") != "" {
 		status, err := getBitwardenStatus()
-		if err == nil && status == "unlocked" {
+		if err == nil && status == statusUnlocked {
 			fmt.Fprintln(os.Stderr, "このシェルでは既に BW_SESSION が設定されています。")
 			return nil
 		}
@@ -101,97 +106,159 @@ func Unlock() error {
 func LoadEnv() (*LoadStats, error) {
 	stats := &LoadStats{}
 
+	// 事前チェック
+	if err := checkBitwardenPrerequisites(); err != nil {
+		return stats, err
+	}
+
+	// env: プレフィックス付きの項目を検索
+	items, err := fetchBitwardenEnvItems()
+	if err != nil {
+		return stats, err
+	}
+
+	// 各項目を処理して環境変数に設定
+	if err := processEnvItems(items, stats); err != nil {
+		return stats, err
+	}
+
+	// 結果の表示
+	if err := printLoadStats(stats); err != nil {
+		return stats, err
+	}
+
+	return stats, nil
+}
+
+// checkBitwardenPrerequisites はBitwarden CLIの事前条件をチェックします。
+func checkBitwardenPrerequisites() error {
 	// bwコマンドの存在確認
 	if _, err := exec.LookPath("bw"); err != nil {
-		return stats, fmt.Errorf("bw コマンドが見つかりません")
+		return fmt.Errorf("bw コマンドが見つかりません")
 	}
 
 	// jqコマンドの存在確認
 	if _, err := exec.LookPath("jq"); err != nil {
-		return stats, fmt.Errorf("jq コマンドが見つかりません")
+		return fmt.Errorf("jq コマンドが見つかりません")
 	}
 
 	// BW_SESSIONが設定されていない場合はスキップ
 	if os.Getenv("BW_SESSION") == "" {
-		return stats, fmt.Errorf("BW_SESSION が設定されていません。Bitwarden をアンロックしてください")
+		return fmt.Errorf("BW_SESSION が設定されていません。Bitwarden をアンロックしてください")
 	}
 
 	// ステータス確認
 	status, err := getBitwardenStatus()
 	if err != nil {
-		return stats, fmt.Errorf("Bitwarden のステータス確認に失敗しました: %w", err)
+		return fmt.Errorf("Bitwarden のステータス確認に失敗しました: %w", err)
 	}
 
-	if status != "unlocked" {
-		return stats, fmt.Errorf("Bitwarden がロックされています。'bw unlock' を実行してください")
+	if status != statusUnlocked {
+		return fmt.Errorf("Bitwarden がロックされています。'bw unlock' を実行してください")
 	}
 
-	// env: プレフィックス付きの項目を検索
+	return nil
+}
+
+// fetchBitwardenEnvItems はBitwardenからenv:プレフィックス付きの項目を取得します。
+func fetchBitwardenEnvItems() ([]BitwardenItem, error) {
 	fmt.Fprintln(os.Stderr, "🔑 環境変数を読み込んでいます...")
+
 	cmd := exec.Command("bw", "list", "items", "--search", "env:")
 	output, err := cmd.Output()
 	if err != nil {
-		return stats, fmt.Errorf("bw list items が失敗しました: %w", err)
+		return nil, fmt.Errorf("bw list items が失敗しました: %w", err)
 	}
 
 	var items []BitwardenItem
 	if err := json.Unmarshal(output, &items); err != nil {
-		return stats, fmt.Errorf("JSON のパースに失敗しました: %w", err)
+		return nil, fmt.Errorf("JSON のパースに失敗しました: %w", err)
 	}
 
-	// 各項目を処理
-	for _, item := range items {
-		if !strings.HasPrefix(item.Name, "env:") {
+	return items, nil
+}
+
+// processEnvItems は各項目を処理して環境変数に設定します。
+func processEnvItems(items []BitwardenItem, stats *LoadStats) error {
+	for i := range items {
+		if !strings.HasPrefix(items[i].Name, "env:") {
 			continue
 		}
 
-		// 変数名を抽出（env: プレフィックスを除去）
-		varName := strings.TrimPrefix(item.Name, "env:")
-
-		// 変数名の検証
-		if !isValidEnvVarName(varName) {
-			fmt.Fprintf(os.Stderr, "⚠️  項目名から無効な環境変数名をスキップ: %s\n", item.Name)
-			stats.Invalid++
-			continue
+		if err := processEnvItem(&items[i], stats); err != nil {
+			return err
 		}
-
-		// カスタムフィールド "value" から値を取得（大文字小文字を区別しない）
-		value := getCustomFieldValue(item.Fields, "value")
-		// フィールドがない場合は login.password をフォールバックとして利用
-		if value == "" && item.Login != nil {
-			value = strings.TrimSpace(item.Login.Password)
-			if value != "" {
-				fmt.Fprintf(os.Stderr, "ℹ️  項目 %s は 'value' フィールドが無いので login.password を利用します\n", item.Name)
-			}
-		}
-		if value == "" {
-			fmt.Fprintf(os.Stderr, "⚠️  項目 %s に 'value' カスタムフィールドがありません\n", item.Name)
-			stats.Missing++
-			continue
-		}
-
-		// 環境変数に設定
-		if err := os.Setenv(varName, value); err != nil {
-			return stats, fmt.Errorf("環境変数 %s の設定に失敗: %w", varName, err)
-		}
-		fmt.Fprintf(os.Stderr, "✅ %s を注入しました\n", varName)
-		stats.Loaded++
 	}
 
-	// 結果の表示
+	return nil
+}
+
+// processEnvItem は単一の項目を処理して環境変数に設定します。
+func processEnvItem(item *BitwardenItem, stats *LoadStats) error {
+	// 変数名を抽出（env: プレフィックスを除去）
+	varName := strings.TrimPrefix(item.Name, "env:")
+
+	// 変数名の検証
+	if !isValidEnvVarName(varName) {
+		fmt.Fprintf(os.Stderr, "⚠️  項目名から無効な環境変数名をスキップ: %s\n", item.Name)
+		stats.Invalid++
+
+		return nil
+	}
+
+	// 値を取得
+	value := getEnvValue(item)
+	if value == "" {
+		fmt.Fprintf(os.Stderr, "⚠️  項目 %s に 'value' カスタムフィールドがありません\n", item.Name)
+		stats.Missing++
+
+		return nil
+	}
+
+	// 環境変数に設定
+	if err := os.Setenv(varName, value); err != nil {
+		return fmt.Errorf("環境変数 %s の設定に失敗: %w", varName, err)
+	}
+
+	fmt.Fprintf(os.Stderr, "✅ %s を注入しました\n", varName)
+	stats.Loaded++
+
+	return nil
+}
+
+// getEnvValue は項目から環境変数の値を取得します。
+func getEnvValue(item *BitwardenItem) string {
+	// カスタムフィールド "value" から値を取得（大文字小文字を区別しない）
+	value := getCustomFieldValue(item.Fields, "value")
+
+	// フィールドがない場合は login.password をフォールバックとして利用
+	if value == "" && item.Login != nil {
+		value = strings.TrimSpace(item.Login.Password)
+		if value != "" {
+			fmt.Fprintf(os.Stderr, "ℹ️  項目 %s は 'value' フィールドが無いので login.password を利用します\n", item.Name)
+		}
+	}
+
+	return value
+}
+
+// printLoadStats は読み込み結果を表示します。
+func printLoadStats(stats *LoadStats) error {
 	if stats.Loaded == 0 && stats.Missing == 0 && stats.Invalid == 0 {
-		return stats, fmt.Errorf("Bitwarden に env: 項目が見つかりません")
+		return fmt.Errorf("Bitwarden に env: 項目が見つかりません")
 	}
 
 	fmt.Fprintf(os.Stderr, "✅ %d 個の環境変数を読み込みました。\n", stats.Loaded)
+
 	if stats.Missing > 0 {
 		fmt.Fprintf(os.Stderr, "⚠️  %d 個の項目で value フィールドが見つかりませんでした。\n", stats.Missing)
 	}
+
 	if stats.Invalid > 0 {
 		fmt.Fprintf(os.Stderr, "⚠️  %d 個の項目で無効な環境変数名がありました。\n", stats.Invalid)
 	}
 
-	return stats, nil
+	return nil
 }
 
 // GetEnvVars はBitwardenから環境変数を取得し、map形式で返します。
@@ -215,7 +282,7 @@ func GetEnvVars() (map[string]string, error) {
 		return nil, fmt.Errorf("Bitwarden のステータス確認に失敗しました: %w", err)
 	}
 
-	if status != "unlocked" {
+	if status != statusUnlocked {
 		return nil, fmt.Errorf("Bitwarden がロックされています。'bw unlock' を実行してください")
 	}
 

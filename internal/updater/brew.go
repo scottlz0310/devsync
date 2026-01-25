@@ -3,6 +3,7 @@ package updater
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -64,7 +65,8 @@ func (b *BrewUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	output, err := outdatedCmd.Output()
 	if err != nil {
 		// outdated は更新がない場合も exit 0 だが、念のためエラーハンドリング
-		if exitErr, ok := err.(*exec.ExitError); ok && len(exitErr.Stderr) > 0 {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
 			return nil, fmt.Errorf("brew outdated に失敗: %s", string(exitErr.Stderr))
 		}
 	}

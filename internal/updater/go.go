@@ -114,7 +114,7 @@ func (g *GoUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateResu
 		// @latest が付いていない場合は追加
 		pkg := target
 		if !strings.Contains(pkg, "@") {
-			pkg = pkg + "@latest"
+			pkg += "@latest"
 		}
 
 		fmt.Printf("  📦 %s をインストール中...\n", toolName)
@@ -204,7 +204,7 @@ func ListInstalledGoTools() ([]string, error) {
 }
 
 // ParseGoVersionOutput は "go version -m <binary>" の出力からモジュールパスを取得します。
-func ParseGoVersionOutput(output string) (modulePath string, version string) {
+func ParseGoVersionOutput(output string) (modulePath, version string) {
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())

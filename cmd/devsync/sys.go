@@ -9,9 +9,6 @@ import (
 
 	"github.com/scottlz0310/devsync/internal/config"
 	"github.com/scottlz0310/devsync/internal/updater"
-
-	// 各マネージャを init() で登録させるためにインポート
-	_ "github.com/scottlz0310/devsync/internal/updater"
 	"github.com/spf13/cobra"
 )
 

@@ -44,23 +44,23 @@ func GetRecommendedManagers() []string {
 	// Common
 	managers = append(managers, "go", "npm")
 
-	if IsContainer() {
+	switch {
+	case IsContainer():
 		// Container environment usually relies on apt/apk but user might not want to update system packages directly.
 		// Use apt if it's Debian/Ubuntu based.
 		if isDebianLike() {
 			managers = append(managers, "apt")
 		}
-	} else if IsWSL() {
+	case IsWSL():
 		// WSL environment
 		if isDebianLike() {
 			managers = append(managers, "apt")
 		}
 		managers = append(managers, "brew") // Linuxbrew is common in WSL
-	} else {
+	default:
 		// Host Linux/macOS
 		if isDebianLike() {
-			managers = append(managers, "apt")
-			managers = append(managers, "snap")
+			managers = append(managers, "apt", "snap")
 		}
 		// Mac/Linux common
 		managers = append(managers, "brew")

@@ -86,8 +86,14 @@
 
 - [x] README.md と --help の更新（実装済みコマンドに合わせた使用方法の記載）
 - [x] CHANGELOG.md の作成
-- [x] 開発タスクランナー整備（Makefile, scripts/dev.ps1）
+- [x] 開発タスクランナー整備（Makefile → Taskfile.yml に移行）
 - [x] golangci-lint 設定強化（複雑度チェック追加）
+- [x] golangci-lint 警告対応（100+ → 0）
+    - [x] errcheck 警告の修正
+    - [x] gocognit: LoadEnv リファクタ（複雑度26→<20）
+    - [x] errorlint: errors.As/Is への移行
+    - [x] gocritic: octalLiteral, assignOp, paramTypeCombine など
+    - [x] 不要な警告のconfig除外（gosec, fieldalignment, shadow, prealloc）
 - [ ] テストカバレッジ向上（現状18.5% → 目標50%）
     - [ ] `internal/config` のテスト追加
     - [ ] `internal/updater` のテスト追加（モック使用）

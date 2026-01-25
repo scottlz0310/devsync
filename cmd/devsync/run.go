@@ -41,11 +41,10 @@ func runDaily(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// 2. 環境変数の読み込み
+	// 環境変数の読み込みは失敗しても続行する（非致命的エラー）
 	stats, err := secret.LoadEnv()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "⚠️  環境変数の読み込みに失敗: %v\n", err)
-		// 環境変数の読み込みは失敗しても続行する場合もある
-		// return err
 	}
 	if stats != nil && stats.Loaded > 0 {
 		// GPATが読み込まれているか確認
