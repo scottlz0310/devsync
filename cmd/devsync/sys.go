@@ -67,35 +67,11 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// 設定の読み込み
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "⚠️  設定ファイルの読み込みに失敗（デフォルト設定を使用）: %v\n", err)
-		cfg = config.Default()
-	}
-
-	// DryRun フラグの適用（コマンドラインが優先）
-	if cmd.Flags().Changed("dry-run") {
-		cfg.Control.DryRun = sysDryRun
-	}
-
-	// タイムアウトの設定
-	timeout, err := time.ParseDuration(sysTimeout)
-	if err != nil {
-		return fmt.Errorf("タイムアウト値が不正です: %w", err)
-	}
+	cfg, opts := loadSysUpdateConfig(cmd)
 
 	// コンテキストの作成（タイムアウト + キャンセル対応）
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := setupContext()
 	defer cancel()
-
-	// Ctrl+C でキャンセル可能に
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt)
-	go func() {
-		<-sigCh
-		fmt.Println("\n⚠️  中断シグナルを受信しました。処理を終了します...")
-		cancel()
-	}()
 
 	// 有効なマネージャを取得
 	enabledUpdaters, err := updater.GetEnabled(&cfg.Sys)
@@ -105,22 +81,9 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 
 	// 有効なマネージャがない場合は利用可能なものを表示
 	if len(enabledUpdaters) == 0 {
-		fmt.Println("📝 有効化されたマネージャがありません。")
-		fmt.Println()
-		fmt.Println("利用可能なマネージャ:")
-		for _, u := range updater.Available() {
-			fmt.Printf("  - %s (%s)\n", u.Name(), u.DisplayName())
-		}
-		fmt.Println()
-		fmt.Println("💡 config.yaml の sys.enable で使用するマネージャを指定してください。")
-		fmt.Println("   例: enable: [\"apt\", \"go\"]")
-		return nil
-	}
+		printNoManagerHelp()
 
-	// 更新オプション
-	opts := updater.UpdateOptions{
-		DryRun:  cfg.Control.DryRun,
-		Verbose: sysVerbose,
+		return nil
 	}
 
 	if opts.DryRun {
@@ -129,74 +92,168 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// 各マネージャで更新を実行
-	var totalUpdated, totalFailed int
-	var allErrors []error
+	stats := executeUpdates(ctx, enabledUpdaters, opts)
 
-	for _, u := range enabledUpdaters {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("タイムアウトまたはキャンセルされました")
-		default:
-		}
+	// サマリー表示
+	printUpdateSummary(stats)
 
-		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-		fmt.Printf("📦 %s (%s)\n", u.DisplayName(), u.Name())
-		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-
-		result, err := u.Update(ctx, opts)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "❌ エラー: %v\n", err)
-			allErrors = append(allErrors, fmt.Errorf("%s: %w", u.Name(), err))
-			totalFailed++
-			continue
-		}
-
-		if result.Message != "" {
-			fmt.Printf("✅ %s\n", result.Message)
-		}
-
-		if sysVerbose && len(result.Packages) > 0 {
-			fmt.Println("  更新パッケージ:")
-			for _, pkg := range result.Packages {
-				if pkg.CurrentVersion != "" {
-					fmt.Printf("    - %s: %s → %s\n", pkg.Name, pkg.CurrentVersion, pkg.NewVersion)
-				} else {
-					fmt.Printf("    - %s %s\n", pkg.Name, pkg.NewVersion)
-				}
-			}
-		}
-
-		if len(result.Errors) > 0 {
-			for _, e := range result.Errors {
-				fmt.Fprintf(os.Stderr, "  ⚠️  %v\n", e)
-			}
-			allErrors = append(allErrors, result.Errors...)
-		}
-
-		totalUpdated += result.UpdatedCount
-		totalFailed += result.FailedCount
-		fmt.Println()
-	}
-
-	// サマリー
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("📊 更新サマリー")
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Printf("  更新成功: %d 件\n", totalUpdated)
-	if totalFailed > 0 {
-		fmt.Printf("  失敗: %d 件\n", totalFailed)
-	}
-	if len(allErrors) > 0 {
-		fmt.Printf("  エラー数: %d\n", len(allErrors))
-	}
-
-	if len(allErrors) > 0 {
-		return fmt.Errorf("%d 件のエラーが発生しました", len(allErrors))
+	if len(stats.Errors) > 0 {
+		return fmt.Errorf("%d 件のエラーが発生しました", len(stats.Errors))
 	}
 
 	fmt.Println()
 	fmt.Println("✅ システムパッケージの更新が完了しました")
+
 	return nil
+}
+
+// updateStats は更新処理の統計情報を保持します。
+type updateStats struct {
+	Updated int
+	Failed  int
+	Errors  []error
+}
+
+// loadSysUpdateConfig は設定とオプションを読み込みます。
+func loadSysUpdateConfig(cmd *cobra.Command) (*config.Config, updater.UpdateOptions) {
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  設定ファイルの読み込みに失敗（デフォルト設定を使用）: %v\n", err)
+
+		cfg = config.Default()
+	}
+
+	// DryRun フラグの適用（コマンドラインが優先）
+	if cmd.Flags().Changed("dry-run") {
+		cfg.Control.DryRun = sysDryRun
+	}
+
+	opts := updater.UpdateOptions{
+		DryRun:  cfg.Control.DryRun,
+		Verbose: sysVerbose,
+	}
+
+	return cfg, opts
+}
+
+// setupContext はタイムアウトとシグナルハンドリング付きのコンテキストを作成します。
+func setupContext() (context.Context, context.CancelFunc) {
+	timeout, err := time.ParseDuration(sysTimeout)
+	if err != nil {
+		timeout = 10 * time.Minute
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+
+	// Ctrl+C でキャンセル可能に
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+
+	go func() {
+		<-sigCh
+		fmt.Println("\n⚠️  中断シグナルを受信しました。処理を終了します...")
+		cancel()
+	}()
+
+	return ctx, cancel
+}
+
+// printNoManagerHelp はマネージャが未設定の場合のヘルプを表示します。
+func printNoManagerHelp() {
+	fmt.Println("📝 有効化されたマネージャがありません。")
+	fmt.Println()
+	fmt.Println("利用可能なマネージャ:")
+
+	for _, u := range updater.Available() {
+		fmt.Printf("  - %s (%s)\n", u.Name(), u.DisplayName())
+	}
+
+	fmt.Println()
+	fmt.Println("💡 config.yaml の sys.enable で使用するマネージャを指定してください。")
+	fmt.Println("   例: enable: [\"apt\", \"go\"]")
+}
+
+// executeUpdates は各マネージャで更新を実行し、統計を返します。
+func executeUpdates(ctx context.Context, updaters []updater.Updater, opts updater.UpdateOptions) updateStats {
+	var stats updateStats
+
+	for _, u := range updaters {
+		select {
+		case <-ctx.Done():
+			stats.Errors = append(stats.Errors, fmt.Errorf("タイムアウトまたはキャンセルされました"))
+
+			return stats
+		default:
+		}
+
+		printUpdaterHeader(u)
+		result, err := u.Update(ctx, opts)
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "❌ エラー: %v\n", err)
+			stats.Errors = append(stats.Errors, fmt.Errorf("%s: %w", u.Name(), err))
+			stats.Failed++
+
+			continue
+		}
+
+		printUpdaterResult(result)
+		stats.Updated += result.UpdatedCount
+		stats.Failed += result.FailedCount
+		stats.Errors = append(stats.Errors, result.Errors...)
+
+		fmt.Println()
+	}
+
+	return stats
+}
+
+// printUpdaterHeader はマネージャのヘッダーを表示します。
+func printUpdaterHeader(u updater.Updater) {
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Printf("📦 %s (%s)\n", u.DisplayName(), u.Name())
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+}
+
+// printUpdaterResult は更新結果を表示します。
+func printUpdaterResult(result *updater.UpdateResult) {
+	if result.Message != "" {
+		fmt.Printf("✅ %s\n", result.Message)
+	}
+
+	if sysVerbose && len(result.Packages) > 0 {
+		fmt.Println("  更新パッケージ:")
+
+		for _, pkg := range result.Packages {
+			if pkg.CurrentVersion != "" {
+				fmt.Printf("    - %s: %s → %s\n", pkg.Name, pkg.CurrentVersion, pkg.NewVersion)
+			} else {
+				fmt.Printf("    - %s %s\n", pkg.Name, pkg.NewVersion)
+			}
+		}
+	}
+
+	if len(result.Errors) > 0 {
+		for _, e := range result.Errors {
+			fmt.Fprintf(os.Stderr, "  ⚠️  %v\n", e)
+		}
+	}
+}
+
+// printUpdateSummary は更新サマリーを表示します。
+func printUpdateSummary(stats updateStats) {
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("📊 更新サマリー")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Printf("  更新成功: %d 件\n", stats.Updated)
+
+	if stats.Failed > 0 {
+		fmt.Printf("  失敗: %d 件\n", stats.Failed)
+	}
+
+	if len(stats.Errors) > 0 {
+		fmt.Printf("  エラー数: %d\n", len(stats.Errors))
+	}
 }
 
 func runSysList(cmd *cobra.Command, args []string) error {
@@ -223,15 +280,18 @@ func runSysList(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("名前       | 表示名                    | 利用可能 | 有効")
 	fmt.Println("-----------|---------------------------|----------|------")
+
 	for _, u := range allUpdaters {
 		available := "❌"
 		if u.IsAvailable() {
 			available = "✅"
 		}
+
 		enabled := "  "
 		if enabledSet[u.Name()] {
 			enabled = "✅"
 		}
+
 		fmt.Printf("%-10s | %-25s | %s       | %s\n",
 			u.Name(), u.DisplayName(), available, enabled)
 	}

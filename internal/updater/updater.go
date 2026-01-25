@@ -100,6 +100,7 @@ func Get(name string) (Updater, bool) {
 	globalRegistry.mu.RLock()
 	defer globalRegistry.mu.RUnlock()
 	u, ok := globalRegistry.updaters[name]
+
 	return u, ok
 }
 
@@ -112,6 +113,7 @@ func All() []Updater {
 	for _, u := range globalRegistry.updaters {
 		result = append(result, u)
 	}
+
 	return result
 }
 
@@ -119,11 +121,13 @@ func All() []Updater {
 func Available() []Updater {
 	all := All()
 	result := make([]Updater, 0, len(all))
+
 	for _, u := range all {
 		if u.IsAvailable() {
 			result = append(result, u)
 		}
 	}
+
 	return result
 }
 
@@ -135,6 +139,7 @@ func GetEnabled(cfg *config.SysConfig) ([]Updater, error) {
 	}
 
 	result := make([]Updater, 0, len(cfg.Enable))
+
 	var notFound []string
 
 	for _, name := range cfg.Enable {
@@ -143,6 +148,7 @@ func GetEnabled(cfg *config.SysConfig) ([]Updater, error) {
 			notFound = append(notFound, name)
 			continue
 		}
+
 		if !u.IsAvailable() {
 			// 利用不可のマネージャは警告のみでスキップ
 			continue
@@ -153,6 +159,7 @@ func GetEnabled(cfg *config.SysConfig) ([]Updater, error) {
 				return nil, fmt.Errorf("%s の設定適用に失敗: %w", name, err)
 			}
 		}
+
 		result = append(result, u)
 	}
 

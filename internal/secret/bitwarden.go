@@ -69,14 +69,17 @@ func Unlock() error {
 			fmt.Fprintln(os.Stderr, "このシェルでは既に BW_SESSION が設定されています。")
 			return nil
 		}
+
 		fmt.Fprintln(os.Stderr, "BW_SESSION が設定されていますがロックされています。再アンロックします...")
 	}
 
 	// アンロック実行
 	fmt.Fprintln(os.Stderr, "🔐 Bitwarden をアンロックしています...")
+
 	cmd = exec.Command("bw", "unlock", "--raw")
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
+
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("bw unlock が失敗しました: %w", err)
@@ -98,6 +101,7 @@ func Unlock() error {
 	}
 
 	fmt.Fprintln(os.Stderr, "✅ このシェルで Bitwarden をアンロックしました。")
+
 	return nil
 }
 
@@ -165,6 +169,7 @@ func fetchBitwardenEnvItems() ([]BitwardenItem, error) {
 	fmt.Fprintln(os.Stderr, "🔑 環境変数を読み込んでいます...")
 
 	cmd := exec.Command("bw", "list", "items", "--search", "env:")
+
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("bw list items が失敗しました: %w", err)
@@ -201,6 +206,7 @@ func processEnvItem(item *BitwardenItem, stats *LoadStats) error {
 	// 変数名の検証
 	if !isValidEnvVarName(varName) {
 		fmt.Fprintf(os.Stderr, "⚠️  項目名から無効な環境変数名をスキップ: %s\n", item.Name)
+
 		stats.Invalid++
 
 		return nil
@@ -210,6 +216,7 @@ func processEnvItem(item *BitwardenItem, stats *LoadStats) error {
 	value := getEnvValue(item)
 	if value == "" {
 		fmt.Fprintf(os.Stderr, "⚠️  項目 %s に 'value' カスタムフィールドがありません\n", item.Name)
+
 		stats.Missing++
 
 		return nil
@@ -221,6 +228,7 @@ func processEnvItem(item *BitwardenItem, stats *LoadStats) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "✅ %s を注入しました\n", varName)
+
 	stats.Loaded++
 
 	return nil
@@ -288,6 +296,7 @@ func GetEnvVars() (map[string]string, error) {
 
 	// env: プレフィックス付きの項目を検索
 	cmd := exec.Command("bw", "list", "items", "--search", "env:")
+
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("bw list items が失敗しました: %w", err)
@@ -318,6 +327,7 @@ func GetEnvVars() (map[string]string, error) {
 		if value == "" && item.Login != nil {
 			value = strings.TrimSpace(item.Login.Password)
 		}
+
 		if value == "" {
 			continue
 		}
@@ -347,12 +357,14 @@ func getCustomFieldValue(fields []BitwardenCustomField, name string) string {
 			return field.Value
 		}
 	}
+
 	return ""
 }
 
 // getBitwardenStatus は現在のBitwardenステータスを取得します。
 func getBitwardenStatus() (string, error) {
 	cmd := exec.Command("bw", "status")
+
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err

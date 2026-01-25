@@ -41,6 +41,7 @@ func (p *PipxUpdater) Configure(cfg config.ManagerConfig) error {
 func (p *PipxUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	// pipx list --json でインストール済みパッケージを取得
 	cmd := exec.CommandContext(ctx, "pipx", "list", "--json")
+
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("pipx list の実行に失敗: %w", err)
@@ -75,6 +76,7 @@ func (p *PipxUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRe
 	if opts.DryRun {
 		result.Message = fmt.Sprintf("%d 件のインストール済みパッケージについて更新を確認します（DryRunモード）", len(checkResult.Packages))
 		result.Packages = checkResult.Packages
+
 		return result, nil
 	}
 
@@ -101,10 +103,8 @@ func (p *PipxUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRe
 // parsePipxListJSON は "pipx list --json" の出力をパースします
 // JSON 形式: { "venvs": { "package-name": { "metadata": { "main_package": { "package_version": "1.0.0" } } } } }
 func (p *PipxUpdater) parsePipxListJSON(output []byte) []PackageInfo {
-	var packages []PackageInfo
-
 	if len(output) == 0 {
-		return packages
+		return nil
 	}
 
 	var listResult struct {
@@ -119,8 +119,10 @@ func (p *PipxUpdater) parsePipxListJSON(output []byte) []PackageInfo {
 
 	if err := json.Unmarshal(output, &listResult); err != nil {
 		// JSON パースエラーは無視して空リストを返す
-		return packages
+		return nil
 	}
+
+	packages := make([]PackageInfo, 0, len(listResult.Venvs))
 
 	for name, venv := range listResult.Venvs {
 		pkg := PackageInfo{

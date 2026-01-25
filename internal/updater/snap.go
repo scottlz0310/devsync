@@ -37,9 +37,11 @@ func (s *SnapUpdater) Configure(cfg config.ManagerConfig) error {
 	if cfg == nil {
 		return nil
 	}
+
 	if useSudo, ok := cfg["use_sudo"].(bool); ok {
 		s.useSudo = useSudo
 	}
+
 	return nil
 }
 
@@ -47,6 +49,7 @@ func (s *SnapUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	// snap refresh --list で更新可能なスナップを取得
 	// LANG=C でロケールを英語に固定
 	cmd := exec.CommandContext(ctx, "snap", "refresh", "--list")
+
 	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
 	output, err := cmd.Output()
 
@@ -70,10 +73,12 @@ func (s *SnapUpdater) Check(ctx context.Context) (*CheckResult, error) {
 				}, nil
 			}
 		}
+
 		return nil, fmt.Errorf("snap refresh --list の実行に失敗: %w", err)
 	}
 
 	packages := s.parseRefreshList(string(output))
+
 	return &CheckResult{
 		AvailableUpdates: len(packages),
 		Packages:         packages,
@@ -97,6 +102,7 @@ func (s *SnapUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRe
 	if opts.DryRun {
 		result.Message = fmt.Sprintf("%d 件のスナップが更新可能です（DryRunモード）", checkResult.AvailableUpdates)
 		result.Packages = checkResult.Packages
+
 		return result, nil
 	}
 
@@ -134,11 +140,12 @@ func (s *SnapUpdater) runCommand(ctx context.Context) error {
 // Name     Version    Rev   Size   Publisher   Notes
 // package  1.0.0      123   10MB   publisher   -
 func (s *SnapUpdater) parseRefreshList(output string) []PackageInfo {
-	var packages []PackageInfo
 	lines := strings.Split(output, "\n")
+	packages := make([]PackageInfo, 0, len(lines))
 
 	// ヘッダー行をスキップ（最初の行）
 	headerSkipped := false
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -150,6 +157,7 @@ func (s *SnapUpdater) parseRefreshList(output string) []PackageInfo {
 			if strings.HasPrefix(line, "Name") {
 				headerSkipped = true
 			}
+
 			continue
 		}
 

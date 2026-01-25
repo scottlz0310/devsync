@@ -33,7 +33,9 @@ func IsWSL() bool {
 	if err != nil {
 		return false
 	}
+
 	s := strings.ToLower(string(data))
+
 	return strings.Contains(s, "microsoft") && strings.Contains(s, "wsl")
 }
 
@@ -56,6 +58,7 @@ func GetRecommendedManagers() []string {
 		if isDebianLike() {
 			managers = append(managers, "apt")
 		}
+
 		managers = append(managers, "brew") // Linuxbrew is common in WSL
 	default:
 		// Host Linux/macOS

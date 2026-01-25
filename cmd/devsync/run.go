@@ -38,6 +38,7 @@ func runDaily(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "❌ Bitwarden のアンロックに失敗: %v\n", err)
 		return err
 	}
+
 	fmt.Println()
 
 	// 2. 環境変数の読み込み
@@ -46,12 +47,14 @@ func runDaily(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "⚠️  環境変数の読み込みに失敗: %v\n", err)
 	}
+
 	if stats != nil && stats.Loaded > 0 {
 		// GPATが読み込まれているか確認
 		if gpat := os.Getenv("GPAT"); gpat != "" {
 			fmt.Println("✅ GPAT が読み込まれました。リポジトリ設定の自動化が利用可能です。")
 		}
 	}
+
 	fmt.Println()
 
 	// 3. システム更新（将来実装）
@@ -65,5 +68,6 @@ func runDaily(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	fmt.Println("✅ 開発環境は最新の状態です。")
+
 	return nil
 }

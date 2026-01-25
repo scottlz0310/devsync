@@ -41,6 +41,7 @@ func (c *CargoUpdater) Configure(cfg config.ManagerConfig) error {
 func (c *CargoUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	// cargo install --list でインストール済みパッケージを取得
 	cmd := exec.CommandContext(ctx, "cargo", "install", "--list")
+
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("cargo install --list の実行に失敗: %w", err)
@@ -75,6 +76,7 @@ func (c *CargoUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateR
 	if opts.DryRun {
 		result.Message = fmt.Sprintf("%d 件のインストール済みパッケージについて更新を確認します（DryRunモード）", len(checkResult.Packages))
 		result.Packages = checkResult.Packages
+
 		return result, nil
 	}
 
@@ -104,14 +106,17 @@ func (c *CargoUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateR
 			if err := cmd.Run(); err != nil {
 				result.FailedCount++
 				result.Errors = append(result.Errors, fmt.Errorf("%s: %w", pkg.Name, err))
+
 				continue
 			}
+
 			result.UpdatedCount++
 		}
 
 		if len(result.Errors) > 0 {
 			result.Packages = checkResult.Packages
 			result.Message = fmt.Sprintf("%d 件更新、%d 件失敗", result.UpdatedCount, result.FailedCount)
+
 			return result, fmt.Errorf("一部のパッケージ更新に失敗しました")
 		}
 	}
@@ -133,8 +138,8 @@ func (c *CargoUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateR
 //
 //	binary3
 func (c *CargoUpdater) parseInstallList(output string) []PackageInfo {
-	var packages []PackageInfo
 	lines := strings.Split(output, "\n")
+	packages := make([]PackageInfo, 0, len(lines))
 
 	for _, line := range lines {
 		// インデントされた行（バイナリ名）をスキップ
@@ -147,7 +152,9 @@ func (c *CargoUpdater) parseInstallList(output string) []PackageInfo {
 		if !strings.HasSuffix(line, ":") {
 			continue
 		}
+
 		line = strings.TrimSuffix(line, ":")
+
 		parts := strings.Fields(line)
 		if len(parts) < 2 {
 			continue

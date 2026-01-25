@@ -58,6 +58,7 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
 	defaultRepoRoot := filepath.Join(home, "src")
 	recommendedManagers := env.GetRecommendedManagers()
 
@@ -114,6 +115,7 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 			fmt.Println("キャンセルしました。")
 			return nil
 		}
+
 		return err
 	}
 
@@ -174,6 +176,7 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 		Message: "保存してよろしいですか？",
 		Default: true,
 	}
+
 	if err := survey.AskOne(prompt, &confirm); err != nil {
 		return err
 	}
@@ -216,6 +219,7 @@ func generateShellInit(home string) error {
 	}
 
 	var scriptPath string
+
 	var scriptContent string
 
 	switch shell {
@@ -242,6 +246,7 @@ func generateShellInit(home string) error {
 
 	// rcファイルへの追加を確認
 	var rcFilePath string
+
 	var sourceCommand string
 
 	switch shell {
@@ -252,8 +257,10 @@ func generateShellInit(home string) error {
 			fmt.Printf("\n⚠️  PowerShell プロファイルパスの取得に失敗しました: %v\n", err)
 			fmt.Printf("次のコマンドを PowerShell のプロファイル ($PROFILE) に手動で追加してください:\n")
 			fmt.Printf("\n  . %q\n", scriptPath)
+
 			return nil
 		}
+
 		rcFilePath = profilePath
 		// PowerShellではパスにスペースが含まれる可能性があるため引用符で囲む
 		sourceCommand = fmt.Sprintf(". %q", scriptPath)
@@ -266,6 +273,7 @@ func generateShellInit(home string) error {
 	default:
 		fmt.Printf("\n次のコマンドをシェルの設定ファイルに追加してください:\n")
 		fmt.Printf("\n  source %s\n", scriptPath)
+
 		return nil
 	}
 
@@ -275,6 +283,7 @@ func generateShellInit(home string) error {
 		Message: fmt.Sprintf("%s に自動的に読み込む設定を追加しますか？", rcFilePath),
 		Default: true,
 	}
+
 	if err := survey.AskOne(prompt, &addToRc); err != nil {
 		return err
 	}
@@ -282,6 +291,7 @@ func generateShellInit(home string) error {
 	if !addToRc {
 		fmt.Printf("\n次のコマンドを %s に手動で追加してください:\n", rcFilePath)
 		fmt.Printf("\n  %s\n", sourceCommand)
+
 		return nil
 	}
 
@@ -315,6 +325,7 @@ func detectShell() string {
 		if filepath.Base(shell) == "zsh" {
 			return "zsh"
 		}
+
 		if filepath.Base(shell) == "bash" {
 			return "bash"
 		}
@@ -503,6 +514,7 @@ func runConfigUninstall(cmd *cobra.Command, args []string) error {
 	}
 
 	shell := detectShell()
+
 	var rcFilePath string
 
 	switch shell {
@@ -512,6 +524,7 @@ func runConfigUninstall(cmd *cobra.Command, args []string) error {
 			fmt.Printf("⚠️  PowerShell プロファイルパスの取得に失敗しました: %v\n", profileErr)
 			return nil
 		}
+
 		rcFilePath = profilePath
 	case shellZsh:
 		rcFilePath = filepath.Join(home, ".zshrc")
@@ -563,7 +576,9 @@ func removeDevsyncBlock(rcFilePath string) (bool, error) {
 
 	// マーカーブロックを削除
 	lines := strings.Split(contentStr, "\n")
+
 	var newLines []string
+
 	inBlock := false
 	removed := false
 
@@ -571,12 +586,15 @@ func removeDevsyncBlock(rcFilePath string) (bool, error) {
 		if strings.Contains(line, markerBegin) {
 			inBlock = true
 			removed = true
+
 			continue
 		}
+
 		if strings.Contains(line, markerEnd) {
 			inBlock = false
 			continue
 		}
+
 		if !inBlock {
 			newLines = append(newLines, line)
 		}

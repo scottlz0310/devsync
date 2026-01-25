@@ -23,13 +23,11 @@ linters:
     - unconvert
     - unparam
     - nakedret
-    # prealloc はスライスの事前割り当てを推奨するが、可読性を優先して無効化
-    # - prealloc
+    - prealloc      # スライスの事前割り当て推奨
     - nilerr
     - nolintlint
     - whitespace
-    # wsl は空行スタイルの好みであり、多くの警告を出すため無効化
-    # - wsl
+    - wsl           # 空行・ホワイトスペースの一貫性
     # 追加：複雑度・品質チェック
     - gocyclo       # 循環的複雑度
     - gocognit      # 認知複雑度
@@ -47,10 +45,9 @@ linters-settings:
   govet:
     enable-all: true
     disable:
-      # fieldalignment は構造体のメモリ配置を最適化するが、可読性を優先して無効化
+      # fieldalignment は構造体のメモリ配置最適化だが、本プロジェクトでは可読性を優先
+      # 将来的にパフォーマンス問題が顕在化したら有効化を検討
       - fieldalignment
-      # shadow は err のシャドウイングで大量の警告が出るが、Go では if err := ... のパターンが一般的
-      - shadow
 
   gofmt:
     simplify: true
@@ -83,6 +80,11 @@ linters-settings:
   # 重複コードの閾値（トークン数）
   dupl:
     threshold: 100
+
+  # nolint コメントの乱用防止
+  nolintlint:
+    require-explanation: true   # //nolint に理由コメント必須
+    require-specific: true      # //nolint:specific-linter の形式を強制
 
   gocritic:
     enabled-tags:
@@ -123,14 +125,13 @@ issues:
   max-same-issues: 0
 
   exclude-rules:
+    # テストファイルでは重複・複雑度のみ緩和（errcheck/gosecは有効のまま）
     - path: _test\.go
       linters:
-        - gosec
-        - errcheck
         - dupl
         - gocognit
-    # cmd/ 配下は複雑度を緩和
-    - path: cmd/
+    # cmd/*/main.go のみ複雑度を緩和（エントリポイントは複雑になりがち）
+    - path: ^cmd/[^/]+/main\.go$
       linters:
         - gocognit
         - gocyclo

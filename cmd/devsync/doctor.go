@@ -33,6 +33,7 @@ func runDoctor() {
 
 	// 1. 設定ファイルのチェック
 	fmt.Println("📋 設定ファイル:")
+
 	if cfg := config.Get(); cfg != nil {
 		printResult(true, "設定ファイルは正常に読み込まれています")
 	} else {
@@ -61,15 +62,15 @@ func runDoctor() {
 	}
 
 	// GitHub CLI
+	// 必須ではないので見つからなくてもFail扱いにしない
 	if err := checkCommand("gh"); err != nil {
 		printResult(false, "gh (GitHub CLI) が見つかりません（推奨）")
-		// 必須ではないので allPassed は変更しない、あるいはWarningにする?
-		// ここではFail扱いにしないでおく
 	} else {
 		printResult(true, "gh (GitHub CLI)")
 	}
 
 	fmt.Println("\n🔐 シークレット管理 (Bitwarden):")
+
 	if cfg.Secrets.Enabled && cfg.Secrets.Provider == "bitwarden" {
 		// bw コマンド
 		if err := checkCommand("bw"); err != nil {
@@ -91,6 +92,7 @@ func runDoctor() {
 	}
 
 	fmt.Println()
+
 	if allPassed {
 		color.Green("✅ すべての診断項目をパスしました！準備完了です。")
 	} else {

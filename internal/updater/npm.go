@@ -51,6 +51,7 @@ func (n *NpmUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	}
 
 	packages := n.parseOutdatedJSON(output)
+
 	return &CheckResult{
 		AvailableUpdates: len(packages),
 		Packages:         packages,
@@ -74,6 +75,7 @@ func (n *NpmUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRes
 	if opts.DryRun {
 		result.Message = fmt.Sprintf("%d 件のパッケージが更新可能です（DryRunモード）", checkResult.AvailableUpdates)
 		result.Packages = checkResult.Packages
+
 		return result, nil
 	}
 
@@ -98,10 +100,8 @@ func (n *NpmUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRes
 // parseOutdatedJSON は "npm outdated -g --json" の出力をパースします
 // JSON 形式: { "package-name": { "current": "1.0.0", "wanted": "1.1.0", "latest": "2.0.0", "location": "..." }, ... }
 func (n *NpmUpdater) parseOutdatedJSON(output []byte) []PackageInfo {
-	var packages []PackageInfo
-
 	if len(output) == 0 {
-		return packages
+		return nil
 	}
 
 	var outdated map[string]struct {
@@ -113,8 +113,10 @@ func (n *NpmUpdater) parseOutdatedJSON(output []byte) []PackageInfo {
 
 	if err := json.Unmarshal(output, &outdated); err != nil {
 		// JSON パースエラーは無視して空リストを返す
-		return packages
+		return nil
 	}
+
+	packages := make([]PackageInfo, 0, len(outdated))
 
 	for name, info := range outdated {
 		pkg := PackageInfo{

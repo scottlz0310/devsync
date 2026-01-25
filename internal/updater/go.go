@@ -47,6 +47,7 @@ func (g *GoUpdater) Configure(cfg config.ManagerConfig) error {
 		switch v := targets.(type) {
 		case []interface{}:
 			g.targets = make([]string, 0, len(v))
+
 			for _, item := range v {
 				if s, ok := item.(string); ok {
 					g.targets = append(g.targets, s)
@@ -70,6 +71,7 @@ func (g *GoUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	}
 
 	packages := make([]PackageInfo, 0, len(g.targets))
+
 	for _, target := range g.targets {
 		// パッケージパスからツール名を抽出
 		name := extractToolName(target)
@@ -102,8 +104,10 @@ func (g *GoUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateResu
 				NewVersion: "@latest",
 			})
 		}
+
 		result.Packages = packages
 		result.Message = fmt.Sprintf("%d 件のGoツールを更新予定（DryRunモード）", len(g.targets))
+
 		return result, nil
 	}
 
@@ -127,6 +131,7 @@ func (g *GoUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateResu
 		if err := cmd.Run(); err != nil {
 			result.FailedCount++
 			result.Errors = append(result.Errors, fmt.Errorf("%s: %w", toolName, err))
+
 			continue
 		}
 
@@ -156,6 +161,7 @@ func extractToolName(pkg string) string {
 
 	// 最後のパスセグメントを取得
 	parts := strings.Split(pkg, "/")
+
 	return parts[len(parts)-1]
 }
 
@@ -183,8 +189,10 @@ func ListInstalledGoTools() ([]string, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			gopath = home + "/go"
 		}
+
 		gobin = gopath + "/bin"
 	}
 
@@ -194,6 +202,7 @@ func ListInstalledGoTools() ([]string, error) {
 	}
 
 	var tools []string
+
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			tools = append(tools, entry.Name())
@@ -214,6 +223,7 @@ func ParseGoVersionOutput(output string) (modulePath, version string) {
 				modulePath = parts[1]
 			}
 		}
+
 		if strings.HasPrefix(line, "mod") {
 			parts := strings.Fields(line)
 			if len(parts) >= 3 {
@@ -222,5 +232,6 @@ func ParseGoVersionOutput(output string) (modulePath, version string) {
 			}
 		}
 	}
+
 	return
 }

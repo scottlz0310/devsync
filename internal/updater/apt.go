@@ -37,9 +37,11 @@ func (a *AptUpdater) Configure(cfg config.ManagerConfig) error {
 	if cfg == nil {
 		return nil
 	}
+
 	if useSudo, ok := cfg["use_sudo"].(bool); ok {
 		a.useSudo = useSudo
 	}
+
 	return nil
 }
 
@@ -51,12 +53,14 @@ func (a *AptUpdater) Check(ctx context.Context) (*CheckResult, error) {
 
 	// 更新可能なパッケージを取得
 	cmd := exec.CommandContext(ctx, "apt", "list", "--upgradable")
+
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("更新可能パッケージの取得に失敗: %w", err)
 	}
 
 	packages := a.parseUpgradableList(string(output))
+
 	return &CheckResult{
 		AvailableUpdates: len(packages),
 		Packages:         packages,
@@ -80,6 +84,7 @@ func (a *AptUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRes
 	if opts.DryRun {
 		result.Message = fmt.Sprintf("%d 件のパッケージが更新可能です（DryRunモード）", checkResult.AvailableUpdates)
 		result.Packages = checkResult.Packages
+
 		return result, nil
 	}
 
@@ -100,6 +105,7 @@ func (a *AptUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRes
 // runCommand は apt コマンドを実行します（必要に応じて sudo を使用）
 func (a *AptUpdater) runCommand(ctx context.Context, args ...string) error {
 	var cmd *exec.Cmd
+
 	if a.useSudo {
 		fullArgs := append([]string{"apt"}, args...)
 		cmd = exec.CommandContext(ctx, "sudo", fullArgs...)
@@ -116,8 +122,8 @@ func (a *AptUpdater) runCommand(ctx context.Context, args ...string) error {
 
 // parseUpgradableList は "apt list --upgradable" の出力をパースします
 func (a *AptUpdater) parseUpgradableList(output string) []PackageInfo {
-	var packages []PackageInfo
 	lines := strings.Split(output, "\n")
+	packages := make([]PackageInfo, 0, len(lines))
 
 	for _, line := range lines {
 		// "Listing..." のヘッダー行をスキップ

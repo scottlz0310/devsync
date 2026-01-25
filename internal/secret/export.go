@@ -44,6 +44,7 @@ func DetectShell() ShellType {
 		if baseName == "zsh" {
 			return ShellZsh
 		}
+
 		if baseName == "bash" {
 			return ShellBash
 		}
@@ -55,7 +56,7 @@ func DetectShell() ShellType {
 
 // FormatForShell は指定されたシェル用の export 文を生成します。
 func FormatForShell(envVars map[string]string, shellType ShellType) (string, error) {
-	var lines []string
+	lines := make([]string, 0, len(envVars))
 
 	for key, value := range envVars {
 		// KEY名の検証
@@ -72,12 +73,14 @@ func FormatForShell(envVars map[string]string, shellType ShellType) (string, err
 		}
 
 		var line string
+
 		switch shellType {
 		case ShellPowerShell:
 			line = formatPowerShellExport(key, value)
 		default: // ShellBash, ShellZsh
 			line = formatPosixExport(key, value)
 		}
+
 		lines = append(lines, line)
 	}
 
@@ -126,6 +129,7 @@ func GetShellExecutable() string {
 		if _, err := exec.LookPath("pwsh"); err == nil {
 			return "pwsh"
 		}
+
 		return "powershell"
 	}
 

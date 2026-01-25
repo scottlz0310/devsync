@@ -39,14 +39,13 @@ func Load() (*Config, error) {
 		v.SetConfigType("yaml")
 	}
 
-	// 設定ファイルの読み込み
+	// 設定ファイルの読み込み（ファイルがない場合はデフォルト値のみで続行）
 	if err := v.ReadInConfig(); err != nil {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
 		if !errors.As(err, &configFileNotFoundError) {
 			// 設定ファイルが存在するが読み込めない場合はエラー
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
-		// 設定ファイルがない場合はデフォルト値のみで続行
 	}
 
 	var cfg Config
@@ -55,6 +54,7 @@ func Load() (*Config, error) {
 	}
 
 	currentConfig = &cfg
+
 	return currentConfig, nil
 }
 

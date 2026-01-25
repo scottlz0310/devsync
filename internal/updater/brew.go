@@ -42,12 +42,15 @@ func (b *BrewUpdater) Configure(cfg config.ManagerConfig) error {
 	if cfg == nil {
 		return nil
 	}
+
 	if cleanup, ok := cfg["cleanup"].(bool); ok {
 		b.cleanup = cleanup
 	}
+
 	if greedy, ok := cfg["greedy"].(bool); ok {
 		b.greedy = greedy
 	}
+
 	return nil
 }
 
@@ -56,12 +59,14 @@ func (b *BrewUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	updateCmd := exec.CommandContext(ctx, "brew", "update")
 	updateCmd.Stdout = os.Stdout
 	updateCmd.Stderr = os.Stderr
+
 	if err := updateCmd.Run(); err != nil {
 		return nil, fmt.Errorf("brew update に失敗: %w", err)
 	}
 
 	// 更新可能なフォーミュラを取得
 	outdatedCmd := exec.CommandContext(ctx, "brew", "outdated", "--verbose")
+
 	output, err := outdatedCmd.Output()
 	if err != nil {
 		// outdated は更新がない場合も exit 0 だが、念のためエラーハンドリング
@@ -96,6 +101,7 @@ func (b *BrewUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRe
 	if opts.DryRun {
 		result.Message = fmt.Sprintf("%d 件のパッケージが更新可能です（DryRunモード）", checkResult.AvailableUpdates)
 		result.Packages = checkResult.Packages
+
 		return result, nil
 	}
 
@@ -103,6 +109,7 @@ func (b *BrewUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRe
 	upgradeCmd := exec.CommandContext(ctx, "brew", "upgrade")
 	upgradeCmd.Stdout = os.Stdout
 	upgradeCmd.Stderr = os.Stderr
+
 	if err := upgradeCmd.Run(); err != nil {
 		result.Errors = append(result.Errors, fmt.Errorf("brew upgrade に失敗: %w", err))
 	}
@@ -112,9 +119,11 @@ func (b *BrewUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRe
 	if b.greedy {
 		caskArgs = append(caskArgs, "--greedy")
 	}
+
 	caskCmd := exec.CommandContext(ctx, "brew", caskArgs...)
 	caskCmd.Stdout = os.Stdout
 	caskCmd.Stderr = os.Stderr
+
 	if err := caskCmd.Run(); err != nil {
 		// Cask がない環境もあるため、エラーは警告として記録
 		result.Errors = append(result.Errors, fmt.Errorf("brew upgrade --cask: %w", err))
@@ -125,6 +134,7 @@ func (b *BrewUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRe
 		cleanupCmd := exec.CommandContext(ctx, "brew", "cleanup")
 		cleanupCmd.Stdout = os.Stdout
 		cleanupCmd.Stderr = os.Stderr
+
 		if err := cleanupCmd.Run(); err != nil {
 			result.Errors = append(result.Errors, fmt.Errorf("brew cleanup: %w", err))
 		}
@@ -140,6 +150,7 @@ func (b *BrewUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRe
 // parseOutdatedList は "brew outdated --verbose" の出力をパースします
 func (b *BrewUpdater) parseOutdatedList(output string) []PackageInfo {
 	var packages []PackageInfo
+
 	scanner := bufio.NewScanner(strings.NewReader(output))
 
 	for scanner.Scan() {
