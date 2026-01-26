@@ -10,6 +10,46 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// captureStderrは標準エラー出力をキャプチャするテストヘルパーです。
+func captureStderr(t *testing.T, f func()) string {
+	t.Helper()
+
+	old := os.Stderr
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stderr = w
+
+	f()
+
+	w.Close()
+	os.Stderr = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+
+	return buf.String()
+}
+
+// captureStderrWithErrorは関数の戻り値も取得するstderrキャプチャヘルパーです。
+func captureStderrWithError(t *testing.T, f func() error) (string, error) {
+	t.Helper()
+
+	old := os.Stderr
+	r, w, pipeErr := os.Pipe()
+	require.NoError(t, pipeErr)
+	os.Stderr = w
+
+	err := f()
+
+	w.Close()
+	os.Stderr = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+
+	return buf.String(), err
+}
+
 func TestIsValidEnvVarName(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -241,23 +281,6 @@ func TestGetEnvValue(t *testing.T) {
 }
 
 func TestProcessEnvItem(t *testing.T) {
-	// stderrをキャプチャするヘルパー
-	captureStderr := func(f func()) string {
-		old := os.Stderr
-		r, w, _ := os.Pipe()
-		os.Stderr = w
-
-		f()
-
-		w.Close()
-		os.Stderr = old
-
-		var buf bytes.Buffer
-		_, _ = io.Copy(&buf, r)
-
-		return buf.String()
-	}
-
 	tests := []struct {
 		name           string
 		item           *BitwardenItem
@@ -322,7 +345,7 @@ func TestProcessEnvItem(t *testing.T) {
 				os.Unsetenv(varName)
 			}
 
-			stderr := captureStderr(func() {
+			stderr := captureStderr(t, func() {
 				err := processEnvItem(tt.item, stats)
 				if tt.expectedErr {
 					assert.Error(t, err)
@@ -419,23 +442,6 @@ func TestProcessEnvItems(t *testing.T) {
 }
 
 func TestPrintLoadStats(t *testing.T) {
-	// stderrをキャプチャするヘルパー
-	captureStderr := func(f func() error) (string, error) {
-		old := os.Stderr
-		r, w, _ := os.Pipe()
-		os.Stderr = w
-
-		err := f()
-
-		w.Close()
-		os.Stderr = old
-
-		var buf bytes.Buffer
-		_, _ = io.Copy(&buf, r)
-
-		return buf.String(), err
-	}
-
 	tests := []struct {
 		name         string
 		stats        *LoadStats
@@ -507,7 +513,7 @@ func TestPrintLoadStats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stderr, err := captureStderr(func() error {
+			stderr, err := captureStderrWithError(t, func() error {
 				return printLoadStats(tt.stats)
 			})
 
