@@ -98,9 +98,11 @@ func TestAll(t *testing.T) {
 
 		// 名前のセットを確認
 		names := make(map[string]bool)
+
 		for _, u := range all {
 			names[u.Name()] = true
 		}
+
 		assert.True(t, names["apt"])
 		assert.True(t, names["brew"])
 		assert.True(t, names["npm"])
@@ -123,9 +125,11 @@ func TestAvailable(t *testing.T) {
 		assert.Len(t, avail, 2)
 
 		names := make(map[string]bool)
+
 		for _, u := range avail {
 			names[u.Name()] = true
 		}
+
 		assert.True(t, names["available1"])
 		assert.True(t, names["available2"])
 		assert.False(t, names["unavailable"])

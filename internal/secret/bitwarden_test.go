@@ -15,17 +15,23 @@ func captureStderr(t *testing.T, f func()) string {
 	t.Helper()
 
 	old := os.Stderr
+
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
+
 	os.Stderr = w
 
 	f()
 
-	w.Close()
+	closeErr := w.Close()
+	require.NoError(t, closeErr)
+
 	os.Stderr = old
 
 	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
+
+	_, copyErr := io.Copy(&buf, r)
+	require.NoError(t, copyErr)
 
 	return buf.String()
 }
@@ -35,17 +41,23 @@ func captureStderrWithError(t *testing.T, f func() error) (string, error) {
 	t.Helper()
 
 	old := os.Stderr
+
 	r, w, pipeErr := os.Pipe()
 	require.NoError(t, pipeErr)
+
 	os.Stderr = w
 
 	err := f()
 
-	w.Close()
+	closeErr := w.Close()
+	require.NoError(t, closeErr)
+
 	os.Stderr = old
 
 	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
+
+	_, copyErr := io.Copy(&buf, r)
+	require.NoError(t, copyErr)
 
 	return buf.String(), err
 }
@@ -342,7 +354,7 @@ func TestProcessEnvItem(t *testing.T) {
 			}
 
 			if varName != "" {
-				os.Unsetenv(varName)
+				t.Setenv(varName, "") // t.Setenvは自動でクリーンアップされる
 			}
 
 			stderr := captureStderr(t, func() {
@@ -363,7 +375,6 @@ func TestProcessEnvItem(t *testing.T) {
 			if tt.expectedEnvVar != "" && varName != "" {
 				actual := os.Getenv(varName)
 				assert.Equal(t, tt.expectedEnvVar, actual, "Environment variable value mismatch")
-				os.Unsetenv(varName) // クリーンアップ
 			}
 
 			// stderrの検証
@@ -417,10 +428,10 @@ func TestProcessEnvItems(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			stats := &LoadStats{}
 
-			// 環境変数をクリーンアップ
+			// 環境変数をクリーンアップ（t.Setenvは自動でクリーンアップされる）
 			for i := range tt.items {
 				if len(tt.items[i].Name) > 4 && tt.items[i].Name[:4] == "env:" {
-					os.Unsetenv(tt.items[i].Name[4:])
+					t.Setenv(tt.items[i].Name[4:], "")
 				}
 			}
 
@@ -430,13 +441,6 @@ func TestProcessEnvItems(t *testing.T) {
 			assert.Equal(t, tt.expectedStats.Loaded, stats.Loaded, "Loaded count mismatch")
 			assert.Equal(t, tt.expectedStats.Missing, stats.Missing, "Missing count mismatch")
 			assert.Equal(t, tt.expectedStats.Invalid, stats.Invalid, "Invalid count mismatch")
-
-			// クリーンアップ
-			for i := range tt.items {
-				if len(tt.items[i].Name) > 4 && tt.items[i].Name[:4] == "env:" {
-					os.Unsetenv(tt.items[i].Name[4:])
-				}
-			}
 		})
 	}
 }
@@ -522,6 +526,7 @@ func TestPrintLoadStats(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.errorMessage)
 			} else {
 				assert.NoError(t, err)
+
 				for _, expected := range tt.checkStderr {
 					assert.Contains(t, stderr, expected, "stderr should contain: %s", expected)
 				}

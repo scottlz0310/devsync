@@ -27,31 +27,31 @@ func TestAptUpdater_Configure(t *testing.T) {
 		{
 			name:        "nilの設定",
 			cfg:         nil,
-			expectSudo: false, // デフォルト値
+			expectSudo:  false, // デフォルト値
 			description: "nil設定の場合はデフォルトのまま",
 		},
 		{
 			name:        "空の設定",
 			cfg:         config.ManagerConfig{},
-			expectSudo: false,
+			expectSudo:  false,
 			description: "空の設定の場合はデフォルトのまま",
 		},
 		{
 			name:        "use_sudo=true",
 			cfg:         config.ManagerConfig{"use_sudo": true},
-			expectSudo: true,
+			expectSudo:  true,
 			description: "use_sudoがtrueの場合はsudoを使用",
 		},
 		{
 			name:        "use_sudo=false",
 			cfg:         config.ManagerConfig{"use_sudo": false},
-			expectSudo: false,
+			expectSudo:  false,
 			description: "use_sudoがfalseの場合はsudoを使用しない",
 		},
 		{
 			name:        "不正な型の値",
 			cfg:         config.ManagerConfig{"use_sudo": "true"}, // stringは無視される
-			expectSudo: false,
+			expectSudo:  false,
 			description: "不正な型の値は無視される",
 		},
 	}
@@ -137,6 +137,7 @@ invalid-line-without-space`,
 			result := apt.parseUpgradableList(tt.output)
 
 			assert.Len(t, result, len(tt.expected))
+
 			for i, expected := range tt.expected {
 				assert.Equal(t, expected.Name, result[i].Name, "Package name mismatch at index %d", i)
 				assert.Equal(t, expected.NewVersion, result[i].NewVersion, "New version mismatch at index %d", i)

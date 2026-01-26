@@ -100,11 +100,9 @@ func TestSave(t *testing.T) {
 	})
 
 	t.Run("エラー系: 書き込み不可能なディレクトリ", func(t *testing.T) {
-		// root権限が必要なパスへの書き込みを試みる
-		// Note: このテストは環境によっては動作しない可能性がある
+		// /proc は書き込み不可能なため、エラーが期待される
 		cfg := Default()
 
-		// /proc は書き込み不可能
 		err := Save(cfg, "/proc/invalid/config.yaml")
 		assert.Error(t, err)
 	})

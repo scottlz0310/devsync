@@ -22,11 +22,14 @@ func TestDefault(t *testing.T) {
 		assert.False(t, cfg.Control.DryRun)
 
 		// Repo defaults
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		require.NoError(t, err)
+
 		expectedRoot := filepath.Join(home, "src")
 		if home == "" {
 			expectedRoot = "./src"
 		}
+
 		assert.Equal(t, expectedRoot, cfg.Repo.Root)
 		assert.Equal(t, "https", cfg.Repo.GitHub.Protocol)
 		assert.True(t, cfg.Repo.Sync.AutoStash)

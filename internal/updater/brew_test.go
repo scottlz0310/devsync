@@ -97,7 +97,7 @@ func TestBrewUpdater_parseOutdatedList(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name: "単一のパッケージ（シンプル形式）",
+			name:   "単一のパッケージ（シンプル形式）",
 			output: `node (18.17.0) < 20.5.0`,
 			expected: []PackageInfo{
 				{Name: "node", CurrentVersion: "18.17.0", NewVersion: "20.5.0"},
@@ -123,14 +123,14 @@ git (2.40.0) < 2.41.0`,
 			},
 		},
 		{
-			name: "バージョン情報のみ（新バージョンなし）",
+			name:   "バージョン情報のみ（新バージョンなし）",
 			output: `mypackage (1.0.0)`,
 			expected: []PackageInfo{
 				{Name: "mypackage", CurrentVersion: "1.0.0", NewVersion: ""},
 			},
 		},
 		{
-			name: "パッケージ名のみ",
+			name:   "パッケージ名のみ",
 			output: `simplepackage`,
 			expected: []PackageInfo{
 				{Name: "simplepackage", CurrentVersion: "", NewVersion: ""},
@@ -178,6 +178,7 @@ python@3.11 (3.11.4_1) < 3.11.5`,
 			}
 
 			assert.Len(t, result, len(tt.expected))
+
 			for i, expected := range tt.expected {
 				assert.Equal(t, expected.Name, result[i].Name, "Package name mismatch at index %d", i)
 				assert.Equal(t, expected.CurrentVersion, result[i].CurrentVersion, "Current version mismatch at index %d", i)

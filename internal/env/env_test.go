@@ -8,9 +8,6 @@ import (
 )
 
 func TestIsContainer(t *testing.T) {
-	// このテストは実行環境に依存するため、
-	// 確実にコントロールできる環境変数のケースのみを検証します。
-
 	t.Run("CODESPACES=true", func(t *testing.T) {
 		t.Setenv("CODESPACES", "true")
 		t.Setenv("REMOTE_CONTAINERS", "")
@@ -49,10 +46,6 @@ func TestIsContainer(t *testing.T) {
 }
 
 func TestIsWSL(t *testing.T) {
-	// WSL検出は /proc/version の内容に依存するため、
-	// 実際の環境によって結果が異なります。
-	// ここでは関数が正常に動作することを確認します。
-
 	t.Run("関数が正常に動作する", func(t *testing.T) {
 		result := IsWSL()
 		// bool型を返すことを確認
@@ -60,11 +53,9 @@ func TestIsWSL(t *testing.T) {
 	})
 
 	t.Run("/proc/versionが存在しない環境では_false", func(t *testing.T) {
-		// WSL判定は /proc/version を読むので、実際のテストは限定的
-		// この環境では /proc/version は存在するが、microsoft/wsl を含まない可能性が高い
+		// WSL判定は /proc/version を読むので、テストは環境依存
 		result := IsWSL()
-		// 実行環境がWSLでなければfalse
-		// 注: この環境はDevContainerなのでfalseが期待される
+		// DevContainer環境ではfalseが期待される
 		assert.IsType(t, true, result)
 	})
 }
