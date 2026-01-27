@@ -458,7 +458,7 @@ func TestPrintLoadStats(t *testing.T) {
 			name:         "すべてゼロの場合エラー",
 			stats:        &LoadStats{Loaded: 0, Missing: 0, Invalid: 0},
 			expectError:  true,
-			errorMessage: "Bitwarden に env: 項目が見つかりません",
+			errorMessage: "bitwarden に env: 項目が見つかりません",
 		},
 
 		// 正常系: 読み込み成功のみ
