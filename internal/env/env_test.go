@@ -20,24 +20,6 @@ func TestIsContainer(t *testing.T) {
 		assert.True(t, IsContainer())
 	})
 
-	t.Run("CODESPACES=false_は_false", func(t *testing.T) {
-		t.Setenv("CODESPACES", "false")
-		t.Setenv("REMOTE_CONTAINERS", "")
-		// "false" は "true" ではないのでコンテナとみなされない
-		// ただし /.dockerenv が存在する場合は true になる可能性がある
-		result := IsContainer()
-		// 環境によって異なるため、単純にエラーにならないことを確認
-		assert.IsType(t, true, result)
-	})
-
-	t.Run("環境変数が空の場合", func(t *testing.T) {
-		t.Setenv("CODESPACES", "")
-		t.Setenv("REMOTE_CONTAINERS", "")
-		// /.dockerenv の存在によって結果が変わる
-		result := IsContainer()
-		assert.IsType(t, true, result)
-	})
-
 	t.Run("両方の環境変数がtrue", func(t *testing.T) {
 		t.Setenv("CODESPACES", "true")
 		t.Setenv("REMOTE_CONTAINERS", "true")
@@ -46,17 +28,11 @@ func TestIsContainer(t *testing.T) {
 }
 
 func TestIsWSL(t *testing.T) {
-	t.Run("関数が正常に動作する", func(t *testing.T) {
+	t.Run("関数がパニックせず実行される", func(t *testing.T) {
+		// IsWSL() は /proc/version の内容に依存するため環境依存
+		// ここでは関数が正常に終了することを確認
 		result := IsWSL()
-		// bool型を返すことを確認
-		assert.IsType(t, true, result)
-	})
-
-	t.Run("/proc/versionが存在しない環境では_false", func(t *testing.T) {
-		// WSL判定は /proc/version を読むので、テストは環境依存
-		result := IsWSL()
-		// DevContainer環境ではfalseが期待される
-		assert.IsType(t, true, result)
+		_ = result
 	})
 }
 

@@ -6,12 +6,15 @@ linters:
   enable:
     - bodyclose
     - dupl
+    - errcheck
     - errorlint
     - gocognit
     - goconst
     - gocritic
     - gocyclo
     - gosec
+    - govet
+    - ineffassign
     - misspell
     - nakedret
     - nilerr
@@ -19,8 +22,10 @@ linters:
     - nolintlint
     - prealloc
     - revive
+    - staticcheck
     - unconvert
     - unparam
+    - unused
     - whitespace
     - wsl
   settings:
