@@ -9,14 +9,21 @@ fi
 bw-unlock() {
   local raw status
 
-  if [ -n "${BW_SESSION-}" ]; then
-    echo "BW_SESSION already set for this shell."
-    return 0
-  fi
-
   if ! command -v bw >/dev/null 2>&1; then
     echo "bw not found in PATH" >&2
     return 1
+  fi
+
+  if [ -n "${BW_SESSION-}" ]; then
+    status="$(bw status 2>/dev/null)"
+    case "$status" in
+      *'"status":"unlocked"'*)
+      echo "BW_SESSION already set for this shell."
+      return 0
+      ;;
+    esac
+
+    unset BW_SESSION
   fi
 
   if ! bw login --check >/dev/null 2>&1; then
@@ -50,7 +57,7 @@ bw-unlock() {
 }
 
 bw-load-env() {
-  local status list_json name value var loaded missing invalid
+  local status list_json name value dup_count var loaded missing invalid duplicates
 
   if ! command -v bw >/dev/null 2>&1; then
     echo "bw not found in PATH" >&2
@@ -71,6 +78,11 @@ bw-load-env() {
     return 0
   fi
 
+  if ! bw sync >/dev/null 2>&1; then
+    echo "bw sync failed." >&2
+    return 1
+  fi
+
   list_json="$(bw list items --search "env:")"
   status=$?
   if [ "$status" -ne 0 ]; then
@@ -81,13 +93,19 @@ bw-load-env() {
   loaded=0
   missing=0
   invalid=0
+  duplicates=0
 
-  while IFS=$'\t' read -r name value; do
+  while IFS=$'\t' read -r name value dup_count; do
     [ -z "$name" ] && continue
     case "$name" in
       env:*) ;;
       *) continue ;;
     esac
+
+    if [ "${dup_count:-0}" -gt 1 ]; then
+      echo "Duplicate item name detected: $name (using most recent revision)." >&2
+      duplicates=$((duplicates + 1))
+    fi
 
     var="${name#env:}"
     if [[ ! "$var" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
@@ -106,10 +124,19 @@ bw-load-env() {
     loaded=$((loaded + 1))
   done < <(
     printf '%s' "$list_json" | jq -r '
-      .[] | select(.name|startswith("env:")) |
-      .name as $name |
-      ( .fields // [] | map(select(.name=="value") | .value) | .[0] // "" ) as $value |
-      [$name, $value] | @tsv
+      [
+        .[] | select(.name|startswith("env:")) |
+        {
+          name: .name,
+          revisionDate: (.revisionDate // ""),
+          value: ((.fields // [] | map(select(.name=="value") | .value) | .[0] // ""))
+        }
+      ]
+      | sort_by(.name, .revisionDate)
+      | group_by(.name)
+      | .[]
+      | (.[-1] + {dup_count: length})
+      | [.name, .value, (.dup_count|tostring)] | @tsv
     '
   )
 
@@ -124,5 +151,8 @@ bw-load-env() {
   fi
   if [ "$invalid" -gt 0 ]; then
     echo "Invalid env var name for $invalid item(s)." >&2
+  fi
+  if [ "$duplicates" -gt 0 ]; then
+    echo "Found duplicate env item name(s): $duplicates." >&2
   fi
 }
