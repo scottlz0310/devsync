@@ -30,6 +30,7 @@ devsync doctor        # 依存ツール（git, bw等）と環境設定の診断
 devsync sys update    # パッケージマネージャで一括更新
 devsync sys update -n # ドライラン（計画のみ表示）
 devsync sys update -j 4 # 4並列で更新
+devsync sys update --tui # Bubble Teaで進捗を表示
 devsync sys list      # 利用可能なパッケージマネージャを一覧表示
 ```
 
@@ -37,12 +38,14 @@ devsync sys list      # 利用可能なパッケージマネージャを一覧�
 
 `sys update` は `--jobs / -j` で並列数を指定できます（未指定時は `config.yaml` の `control.concurrency` を使用）。
 `apt` はパッケージロック競合を避けるため、依存関係ルールとして単独実行されます。
+`--tui` を指定すると、Bubble Tea ベースの進捗UI（マルチ進捗バー・リアルタイムログ・失敗ハイライト）を表示します。
 
 ### リポジトリ管理 (`repo`)
 ```
 devsync repo update       # 管理下リポジトリを更新（fetch + pull --rebase）
 devsync repo update -j 4  # 4並列で更新
 devsync repo update -n    # ドライラン（計画のみ表示）
+devsync repo update --tui # Bubble Teaで進捗を表示
 devsync repo update --submodule      # submodule更新を強制有効化（設定値を上書き）
 devsync repo update --no-submodule   # submodule更新を強制無効化（設定値を上書き）
 devsync repo list         # 管理下リポジトリの一覧と状態を表示
@@ -54,6 +57,7 @@ devsync repo list --root ~/src # ルートを上書きして一覧表示
 `repo update` は `fetch --all`、`pull --rebase`、必要に応じて `submodule update` を実行します。
 submodule 更新の既定値は `config.yaml` の `repo.sync.submodule_update` で制御し、
 CLI では `--submodule` / `--no-submodule` で明示的に上書きできます。
+`--tui` 指定時は、更新の進捗・ログ・失敗状態をインタラクティブに表示します。
 
 ### 環境変数 (`env`)
 ```
