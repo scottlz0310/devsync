@@ -29,10 +29,14 @@ devsync doctor        # 依存ツール（git, bw等）と環境設定の診断
 ```
 devsync sys update    # パッケージマネージャで一括更新
 devsync sys update -n # ドライラン（計画のみ表示）
+devsync sys update -j 4 # 4並列で更新
 devsync sys list      # 利用可能なパッケージマネージャを一覧表示
 ```
 
 **対応パッケージマネージャ**: apt, brew, go, npm, snap, pipx, cargo
+
+`sys update` は `--jobs / -j` で並列数を指定できます（未指定時は `config.yaml` の `control.concurrency` を使用）。
+`apt` はパッケージロック競合を避けるため、依存関係ルールとして単独実行されます。
 
 ### 環境変数 (`env`)
 ```

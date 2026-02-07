@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 
 	"github.com/scottlz0310/devsync/internal/config"
+	"github.com/scottlz0310/devsync/internal/runner"
 	"github.com/scottlz0310/devsync/internal/updater"
 	"github.com/spf13/cobra"
 )
@@ -15,6 +17,7 @@ import (
 var (
 	sysDryRun  bool
 	sysVerbose bool
+	sysJobs    int
 	sysTimeout string
 )
 
@@ -40,7 +43,8 @@ var sysUpdateCmd = &cobra.Command{
 例:
   devsync sys update           # 設定に基づいて更新
   devsync sys update --dry-run # 更新計画のみ表示
-  devsync sys update -v        # 詳細ログを表示`,
+  devsync sys update -v        # 詳細ログを表示
+  devsync sys update --jobs 4  # 4並列で更新`,
 	RunE: runSysUpdate,
 }
 
@@ -59,6 +63,7 @@ func init() {
 	// フラグの定義
 	sysUpdateCmd.Flags().BoolVarP(&sysDryRun, "dry-run", "n", false, "実際の更新は行わず、計画のみ表示")
 	sysUpdateCmd.Flags().BoolVarP(&sysVerbose, "verbose", "v", false, "詳細なログを出力")
+	sysUpdateCmd.Flags().IntVarP(&sysJobs, "jobs", "j", 0, "並列実行数（0以下の場合は設定値または1を使用）")
 	sysUpdateCmd.Flags().StringVarP(&sysTimeout, "timeout", "t", "10m", "全体のタイムアウト時間")
 }
 
@@ -91,8 +96,26 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	// 各マネージャで更新を実行
-	stats := executeUpdates(ctx, enabledUpdaters, opts)
+	jobs := resolveSysJobs(cfg.Control.Concurrency, sysJobs)
+	exclusiveUpdaters, parallelUpdaters := splitUpdatersForExecution(enabledUpdaters)
+
+	var stats updateStats
+
+	if len(exclusiveUpdaters) > 0 {
+		fmt.Println("🔒 依存関係の都合で単独実行するマネージャがあります（apt）。")
+		fmt.Println()
+		mergeUpdateStats(&stats, executeUpdates(ctx, exclusiveUpdaters, opts))
+	}
+
+	if len(parallelUpdaters) > 0 {
+		if jobs > 1 {
+			fmt.Printf("⚡ %d 並列で更新します。\n", jobs)
+			fmt.Println()
+			mergeUpdateStats(&stats, executeUpdatesParallel(ctx, parallelUpdaters, opts, jobs))
+		} else {
+			mergeUpdateStats(&stats, executeUpdates(ctx, parallelUpdaters, opts))
+		}
+	}
 
 	// サマリー表示
 	printUpdateSummary(stats)
@@ -206,6 +229,103 @@ func executeUpdates(ctx context.Context, updaters []updater.Updater, opts update
 	}
 
 	return stats
+}
+
+// executeUpdatesParallel はマネージャ更新を並列実行し、統計を返します。
+func executeUpdatesParallel(ctx context.Context, updaters []updater.Updater, opts updater.UpdateOptions, jobs int) updateStats {
+	var (
+		stats    updateStats
+		statsMu  sync.Mutex
+		outputMu sync.Mutex
+	)
+
+	execJobs := make([]runner.Job, 0, len(updaters))
+
+	for _, updaterItem := range updaters {
+		u := updaterItem
+
+		execJobs = append(execJobs, runner.Job{
+			Name: u.Name(),
+			Run: func(jobCtx context.Context) error {
+				outputMu.Lock()
+				printUpdaterHeader(u)
+				outputMu.Unlock()
+
+				result, err := u.Update(jobCtx, opts)
+				if err != nil {
+					outputMu.Lock()
+					fmt.Fprintf(os.Stderr, "❌ エラー: %v\n", err)
+					outputMu.Unlock()
+
+					statsMu.Lock()
+					stats.Errors = append(stats.Errors, fmt.Errorf("%s: %w", u.Name(), err))
+					stats.Failed++
+					statsMu.Unlock()
+
+					return err
+				}
+
+				outputMu.Lock()
+				printUpdaterResult(result)
+				fmt.Println()
+				outputMu.Unlock()
+
+				statsMu.Lock()
+				stats.Updated += result.UpdatedCount
+				stats.Failed += result.FailedCount
+				stats.Errors = append(stats.Errors, result.Errors...)
+				statsMu.Unlock()
+
+				return nil
+			},
+		})
+	}
+
+	summary := runner.Execute(ctx, jobs, execJobs)
+
+	if summary.Skipped > 0 {
+		stats.Errors = append(stats.Errors, fmt.Errorf("キャンセルまたはタイムアウトにより %d 件をスキップしました", summary.Skipped))
+	}
+
+	return stats
+}
+
+func resolveSysJobs(configJobs, flagJobs int) int {
+	if flagJobs > 0 {
+		return flagJobs
+	}
+
+	if configJobs > 0 {
+		return configJobs
+	}
+
+	return 1
+}
+
+func splitUpdatersForExecution(updaters []updater.Updater) (exclusive []updater.Updater, parallel []updater.Updater) {
+	exclusive = make([]updater.Updater, 0, len(updaters))
+	parallel = make([]updater.Updater, 0, len(updaters))
+
+	for _, u := range updaters {
+		if mustRunExclusively(u) {
+			exclusive = append(exclusive, u)
+			continue
+		}
+
+		parallel = append(parallel, u)
+	}
+
+	return exclusive, parallel
+}
+
+func mustRunExclusively(u updater.Updater) bool {
+	return u.Name() == "apt"
+}
+
+func mergeUpdateStats(dst *updateStats, src updateStats) {
+	dst.Updated += src.Updated
+	dst.Failed += src.Failed
+	dst.Errors = append(dst.Errors, src.Errors...)
 }
 
 // printUpdaterHeader はマネージャのヘッダーを表示します。

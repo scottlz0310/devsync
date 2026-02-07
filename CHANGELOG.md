@@ -16,7 +16,9 @@
 - `devsync sys update` - パッケージマネージャによる一括更新
   - `--dry-run` / `-n` フラグでドライラン対応
   - `--verbose` / `-v` フラグで詳細ログ出力
+  - `--jobs` / `-j` フラグで並列実行数の指定に対応
   - `--timeout` / `-t` フラグでタイムアウト設定
+  - `apt` を単独実行に分離し、他マネージャは並列実行可能に改善
 - `devsync sys list` - 利用可能なパッケージマネージャの一覧表示
 - 対応パッケージマネージャ:
   - `apt` (Debian/Ubuntu)
@@ -27,6 +29,7 @@
   - `cargo` (Rust ツール)
   - `snap` (Snap パッケージ)
 - 拡張可能な Updater インターフェースとレジストリパターンの採用
+- `internal/runner` を追加（`errgroup + semaphore` による並列実行・結果集計）
 
 #### 環境変数機能 (`env`)
 - `devsync env export` - Bitwardenから環境変数をシェル形式でエクスポート
