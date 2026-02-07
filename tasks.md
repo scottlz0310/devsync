@@ -55,17 +55,17 @@
     - [x] `--jobs N` フラグで並列数を指定
     - [x] マネージャごとの依存関係考慮（apt は単独実行など）
 
-## Phase 5: リポジトリ管理 (In Progress)
+## Phase 5: リポジトリ管理 (Completed)
 
 旧ツール `Setup-Repository` の機能移植。
 
 - [x] **リポジトリスキャン**
     - [x] 設定の `repo.root` からリポジトリを検出
     - [x] `.git` ディレクトリ（および worktree の `.git` ファイル）存在確認
-- [ ] **`repo update` コマンド**
-    - [ ] `git fetch` + `git pull --rebase` の実行
-    - [ ] サブモジュール更新対応
-    - [ ] 並列実行エンジンとの統合
+- [x] **`repo update` コマンド**
+    - [x] `git fetch` + `git pull --rebase` の実行
+    - [x] サブモジュール更新対応
+    - [x] 並列実行エンジンとの統合
 - [x] **`repo list` コマンド**
     - [x] 管理下リポジトリの一覧表示
     - [x] ステータス表示（クリーン/ダーティ/未プッシュ/追跡なし）

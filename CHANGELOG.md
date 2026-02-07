@@ -31,11 +31,17 @@
 - 拡張可能な Updater インターフェースとレジストリパターンの採用
 
 #### リポジトリ管理機能 (`repo`)
+- `devsync repo update` - 管理下リポジトリを一括更新
+  - `git fetch --all` / `git pull --rebase` を実行
+  - `--jobs` / `-j` フラグで並列更新に対応
+  - `--dry-run` / `-n` フラグで更新計画の確認に対応
+  - `--submodule` フラグで submodule 更新の有効/無効を切り替え可能
 - `devsync repo list` - 管理下リポジトリの一覧表示
   - `config.yaml` の `repo.root` 配下をスキャン
   - `--root` フラグでスキャンルートを上書き可能
   - ステータス表示（クリーン / ダーティ / 未プッシュ / 追跡なし）
 - `internal/repo` パッケージを追加（検出・状態取得ロジック）
+- `repo.sync.submodule_update` 設定を追加（デフォルト: true）
 - `internal/runner` を追加（`errgroup + semaphore` による並列実行・結果集計）
 
 #### 環境変数機能 (`env`)
