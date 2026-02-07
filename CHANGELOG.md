@@ -99,6 +99,7 @@
 ### Documentation
 
 - README.md - プロジェクト概要と使用方法
+- README.md に利用者向けインストール手順と日常運用（マニュアルテスト）手順を追記
 - Implementation_Plan.md - 設計ドキュメント
 - Legacy_Migration_Analysis.md - 旧ツールからの移行分析
 - AGENTS.md - AIエージェント運用ガイドライン

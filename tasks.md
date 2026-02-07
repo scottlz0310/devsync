@@ -85,6 +85,7 @@
 ## Backlog / 改善
 
 - [x] README.md と --help の更新（実装済みコマンドに合わせた使用方法の記載）
+- [x] README.md にインストール手順と日常運用（マニュアルテスト）手順を追記
 - [x] CHANGELOG.md の作成
 - [x] 開発タスクランナー整備（Makefile → Taskfile.yml に移行）
 - [x] golangci-lint 設定強化（複雑度チェック追加）
