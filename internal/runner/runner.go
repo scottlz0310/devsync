@@ -107,15 +107,7 @@ func Execute(ctx context.Context, maxJobs int, jobs []Job) Summary {
 			}
 
 			err := currentJob.Run(groupCtx)
-
-			status := StatusSuccess
-			if err != nil {
-				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-					status = StatusSkipped
-				} else {
-					status = StatusFailed
-				}
-			}
+			status := resolveStatus(err)
 
 			recordResult(&mu, &summary, i, Result{
 				Name:     name,
@@ -129,7 +121,16 @@ func Execute(ctx context.Context, maxJobs int, jobs []Job) Summary {
 		})
 	}
 
-	_ = group.Wait()
+	if waitErr := group.Wait(); waitErr != nil {
+		// group.Go は nil を返す設計だが、将来の実装変更に備えて集計に残す。
+		summary.Results = append(summary.Results, Result{
+			Name:   "runner",
+			Status: StatusFailed,
+			Err:    waitErr,
+		})
+		summary.Total++
+	}
+
 	recount(&summary)
 
 	return summary
@@ -149,6 +150,18 @@ func normalizeJobName(index int, name string) string {
 	}
 
 	return fmt.Sprintf("job-%d", index+1)
+}
+
+func resolveStatus(err error) ResultStatus {
+	if err == nil {
+		return StatusSuccess
+	}
+
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return StatusSkipped
+	}
+
+	return StatusFailed
 }
 
 func recordResult(mu *sync.Mutex, summary *Summary, index int, result Result) {

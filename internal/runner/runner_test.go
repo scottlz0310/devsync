@@ -74,11 +74,9 @@ func TestExecute(t *testing.T) {
 			},
 		},
 		{
-			name:    "maxJobs が 0 以下なら 1 扱い",
-			maxJobs: 0,
-			buildContext: func() context.Context {
-				return context.Background()
-			},
+			name:         "maxJobs が 0 以下なら 1 扱い",
+			maxJobs:      0,
+			buildContext: context.Background,
 			jobs: []Job{
 				{
 					Name: "job1",

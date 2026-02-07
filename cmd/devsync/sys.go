@@ -302,7 +302,7 @@ func resolveSysJobs(configJobs, flagJobs int) int {
 	return 1
 }
 
-func splitUpdatersForExecution(updaters []updater.Updater) (exclusive []updater.Updater, parallel []updater.Updater) {
+func splitUpdatersForExecution(updaters []updater.Updater) (exclusive, parallel []updater.Updater) {
 	exclusive = make([]updater.Updater, 0, len(updaters))
 	parallel = make([]updater.Updater, 0, len(updaters))
 
