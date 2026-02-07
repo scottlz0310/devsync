@@ -175,8 +175,32 @@ func validateRoot(root string) error {
 }
 
 func hasGitMetadata(path string) bool {
-	_, err := os.Stat(filepath.Join(path, ".git"))
-	return err == nil
+	info, err := os.Stat(filepath.Join(path, ".git"))
+	if err != nil {
+		return false
+	}
+
+	if info.IsDir() {
+		return true
+	}
+
+	if !info.Mode().IsRegular() {
+		return false
+	}
+
+	content, err := os.ReadFile(filepath.Join(path, ".git"))
+	if err != nil {
+		return false
+	}
+
+	line := strings.TrimSpace(string(content))
+	if !strings.HasPrefix(line, "gitdir:") {
+		return false
+	}
+
+	gitDir := strings.TrimSpace(strings.TrimPrefix(line, "gitdir:"))
+
+	return gitDir != ""
 }
 
 func isDirty(ctx context.Context, repoPath string) (bool, error) {

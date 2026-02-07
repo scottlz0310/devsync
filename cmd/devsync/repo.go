@@ -17,10 +17,11 @@ import (
 )
 
 var (
-	repoRootOverride     string
-	repoUpdateJobs       int
-	repoUpdateDryRun     bool
-	repoUpdateSubmodules bool
+	repoRootOverride      string
+	repoUpdateJobs        int
+	repoUpdateDryRun      bool
+	repoUpdateSubmodules  bool
+	repoUpdateNoSubmodule bool
 )
 
 var repoCmd = &cobra.Command{
@@ -54,7 +55,8 @@ func init() {
 	repoUpdateCmd.Flags().StringVar(&repoRootOverride, "root", "", "更新対象のルートディレクトリ（指定時は設定を上書き）")
 	repoUpdateCmd.Flags().IntVarP(&repoUpdateJobs, "jobs", "j", 0, "並列実行数（0以下の場合は設定値または1を使用）")
 	repoUpdateCmd.Flags().BoolVarP(&repoUpdateDryRun, "dry-run", "n", false, "実際の更新は行わず、計画のみ表示")
-	repoUpdateCmd.Flags().BoolVar(&repoUpdateSubmodules, "submodule", true, "submodule update を実行する")
+	repoUpdateCmd.Flags().BoolVar(&repoUpdateSubmodules, "submodule", false, "submodule update を有効化する（設定値を上書き）")
+	repoUpdateCmd.Flags().BoolVar(&repoUpdateNoSubmodule, "no-submodule", false, "submodule update を無効化する（設定値を上書き）")
 }
 
 func runRepoList(cmd *cobra.Command, args []string) error {
@@ -149,9 +151,15 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 		opts.DryRun = repoUpdateDryRun
 	}
 
-	if cmd.Flags().Changed("submodule") {
-		opts.SubmoduleUpdate = repoUpdateSubmodules
+	enableSubmodule := cmd.Flags().Changed("submodule") && repoUpdateSubmodules
+	disableSubmodule := cmd.Flags().Changed("no-submodule") && repoUpdateNoSubmodule
+
+	submoduleUpdate, err := resolveRepoSubmoduleUpdate(opts.SubmoduleUpdate, enableSubmodule, disableSubmodule)
+	if err != nil {
+		return err
 	}
+
+	opts.SubmoduleUpdate = submoduleUpdate
 
 	jobs := resolveRepoJobs(cfg.Control.Concurrency, repoUpdateJobs)
 
@@ -277,4 +285,20 @@ func resolveRepoJobs(configJobs, flagJobs int) int {
 	}
 
 	return 1
+}
+
+func resolveRepoSubmoduleUpdate(configValue, enableOverride, disableOverride bool) (bool, error) {
+	if enableOverride && disableOverride {
+		return false, fmt.Errorf("--submodule と --no-submodule は同時指定できません")
+	}
+
+	if enableOverride {
+		return true, nil
+	}
+
+	if disableOverride {
+		return false, nil
+	}
+
+	return configValue, nil
 }

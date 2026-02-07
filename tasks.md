@@ -96,6 +96,7 @@
     - [x] 不要な警告のconfig除外（gosec, fieldalignment, shadow, prealloc）
     - [x] `wsl` から `wsl_v5` へ移行（非推奨警告対応）
 - [x] 日常運用コマンドを `task check` に統一（`task daily` 追加）
+- [x] `repo update` のレビュー指摘対応（DryRun計画整合 / `.git` 判定厳格化 / submoduleフラグ整理）
 - [ ] テストカバレッジ向上（現状18.5% → 目標50%）
     - [ ] `internal/config` のテスト追加
     - [ ] `internal/updater` のテスト追加（モック使用）

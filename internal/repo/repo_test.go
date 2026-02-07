@@ -16,10 +16,12 @@ func TestDiscover(t *testing.T) {
 
 		repoA := filepath.Join(root, "repo-a")
 		repoB := filepath.Join(root, "repo-b")
+		fakeRepo := filepath.Join(root, "fake-repo")
 		notRepo := filepath.Join(root, "docs")
 
 		createGitDir(t, repoA)
 		createGitFile(t, repoB)
+		createInvalidGitFile(t, fakeRepo)
 		mustMkdir(t, notRepo)
 
 		got, err := Discover(root)
@@ -165,6 +167,60 @@ func TestStatusLabel(t *testing.T) {
 	}
 }
 
+func TestHasGitMetadata(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		setup       func(t *testing.T, root string)
+		expectFound bool
+	}{
+		{
+			name: "gitディレクトリを検出",
+			setup: func(t *testing.T, root string) {
+				createGitDir(t, root)
+			},
+			expectFound: true,
+		},
+		{
+			name: "worktree形式のgitファイルを検出",
+			setup: func(t *testing.T, root string) {
+				createGitFile(t, root)
+			},
+			expectFound: true,
+		},
+		{
+			name: "無効なgitファイルは除外",
+			setup: func(t *testing.T, root string) {
+				createInvalidGitFile(t, root)
+			},
+			expectFound: false,
+		},
+		{
+			name: "gitメタデータなしは除外",
+			setup: func(t *testing.T, root string) {
+				mustMkdir(t, root)
+			},
+			expectFound: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			tc.setup(t, root)
+
+			got := hasGitMetadata(root)
+			if got != tc.expectFound {
+				t.Fatalf("hasGitMetadata() = %v, want %v", got, tc.expectFound)
+			}
+		})
+	}
+}
+
 func createGitDir(t *testing.T, root string) {
 	t.Helper()
 
@@ -180,6 +236,17 @@ func createGitFile(t *testing.T, root string) {
 	gitFilePath := filepath.Join(root, ".git")
 	if err := os.WriteFile(gitFilePath, []byte("gitdir: ../.git/worktrees/test\n"), 0o644); err != nil {
 		t.Fatalf("failed to create .git file: %v", err)
+	}
+}
+
+func createInvalidGitFile(t *testing.T, root string) {
+	t.Helper()
+
+	mustMkdir(t, root)
+
+	gitFilePath := filepath.Join(root, ".git")
+	if err := os.WriteFile(gitFilePath, []byte("this is not git metadata\n"), 0o644); err != nil {
+		t.Fatalf("failed to create invalid .git file: %v", err)
 	}
 }
 
