@@ -38,6 +38,15 @@ devsync sys list      # 利用可能なパッケージマネージャを一覧�
 `sys update` は `--jobs / -j` で並列数を指定できます（未指定時は `config.yaml` の `control.concurrency` を使用）。
 `apt` はパッケージロック競合を避けるため、依存関係ルールとして単独実行されます。
 
+### リポジトリ管理 (`repo`)
+```
+devsync repo list         # 管理下リポジトリの一覧と状態を表示
+devsync repo list --root ~/src # ルートを上書きして一覧表示
+```
+
+`repo list` は `config.yaml` の `repo.root` 配下をスキャンし、状態を表示します。
+状態は `クリーン` / `ダーティ` / `未プッシュ` / `追跡なし` です。
+
 ### 環境変数 (`env`)
 ```
 devsync env export    # Bitwardenから環境変数をシェル形式でエクスポート
@@ -52,7 +61,6 @@ devsync config uninstall  # シェル設定からdevsyncを削除
 
 ### 予定機能
 - `devsync repo update`: 管理下のリポジトリを更新（未実装）
-- `devsync repo list`: 管理下のリポジトリ一覧を表示（未実装）
 
 ## 🔑 環境変数の使用
 

@@ -20,6 +20,9 @@ var rootCmd = &cobra.Command{
   devsync sys update    パッケージマネージャで一括更新
   devsync sys list      利用可能なマネージャを一覧表示
 
+リポジトリ管理:
+  devsync repo list     管理下のリポジトリ一覧と状態を表示
+
 環境変数:
   devsync env export    Bitwardenから環境変数をシェル形式で出力
   devsync env run       環境変数を注入してコマンドを実行

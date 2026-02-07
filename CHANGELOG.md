@@ -29,6 +29,13 @@
   - `cargo` (Rust ツール)
   - `snap` (Snap パッケージ)
 - 拡張可能な Updater インターフェースとレジストリパターンの採用
+
+#### リポジトリ管理機能 (`repo`)
+- `devsync repo list` - 管理下リポジトリの一覧表示
+  - `config.yaml` の `repo.root` 配下をスキャン
+  - `--root` フラグでスキャンルートを上書き可能
+  - ステータス表示（クリーン / ダーティ / 未プッシュ / 追跡なし）
+- `internal/repo` パッケージを追加（検出・状態取得ロジック）
 - `internal/runner` を追加（`errgroup + semaphore` による並列実行・結果集計）
 
 #### 環境変数機能 (`env`)
