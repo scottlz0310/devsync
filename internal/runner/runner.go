@@ -67,32 +67,33 @@ func Execute(ctx context.Context, maxJobs int, jobs []Job) Summary {
 	for index, job := range jobs {
 		i := index
 		currentJob := job
+		start := time.Now()
+		name := normalizeJobName(i, currentJob.Name)
+
+		if currentJob.Run == nil {
+			recordResult(&mu, &summary, i, Result{
+				Name:     name,
+				Status:   StatusFailed,
+				Err:      fmt.Errorf("ジョブ実体が nil です"),
+				Duration: time.Since(start),
+			})
+
+			continue
+		}
+
+		if err := sem.Acquire(groupCtx, 1); err != nil {
+			recordResult(&mu, &summary, i, Result{
+				Name:     name,
+				Status:   StatusSkipped,
+				Err:      err,
+				Duration: time.Since(start),
+			})
+
+			continue
+		}
 
 		group.Go(func() error {
-			start := time.Now()
-			name := normalizeJobName(i, currentJob.Name)
-
-			if currentJob.Run == nil {
-				recordResult(&mu, &summary, i, Result{
-					Name:     name,
-					Status:   StatusFailed,
-					Err:      fmt.Errorf("ジョブ実体が nil です"),
-					Duration: time.Since(start),
-				})
-
-				return nil
-			}
-
-			if err := sem.Acquire(groupCtx, 1); err != nil {
-				recordResult(&mu, &summary, i, Result{
-					Name:     name,
-					Status:   StatusSkipped,
-					Err:      err,
-					Duration: time.Since(start),
-				})
-
-				return nil
-			}
+			// Acquire 済みのため、完了時に必ず Release する。
 			defer sem.Release(1)
 
 			if err := groupCtx.Err(); err != nil {

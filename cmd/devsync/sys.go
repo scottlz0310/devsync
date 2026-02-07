@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -253,6 +254,10 @@ func executeUpdatesParallel(ctx context.Context, updaters []updater.Updater, opt
 
 				result, err := u.Update(jobCtx, opts)
 				if err != nil {
+					if isContextCancellation(err) {
+						return err
+					}
+
 					outputMu.Lock()
 					fmt.Fprintf(os.Stderr, "❌ エラー: %v\n", err)
 					outputMu.Unlock()
@@ -320,6 +325,10 @@ func splitUpdatersForExecution(updaters []updater.Updater) (exclusive, parallel 
 	}
 
 	return exclusive, parallel
+}
+
+func isContextCancellation(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func mustRunExclusively(u updater.Updater) bool {

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/scottlz0310/devsync/internal/config"
@@ -9,7 +11,8 @@ import (
 )
 
 type stubUpdater struct {
-	name string
+	name      string
+	updateErr error
 }
 
 func (s stubUpdater) Name() string {
@@ -29,6 +32,10 @@ func (s stubUpdater) Check(context.Context) (*updater.CheckResult, error) {
 }
 
 func (s stubUpdater) Update(context.Context, updater.UpdateOptions) (*updater.UpdateResult, error) {
+	if s.updateErr != nil {
+		return nil, s.updateErr
+	}
+
 	return &updater.UpdateResult{}, nil
 }
 
@@ -142,5 +149,55 @@ func TestMustRunExclusively(t *testing.T) {
 				t.Fatalf("mustRunExclusively(%s) = %v, want %v", tc.in.Name(), got, tc.want)
 			}
 		})
+	}
+}
+
+func TestExecuteUpdatesParallel_ContextCanceledIsNotFailed(t *testing.T) {
+	t.Parallel()
+
+	updaters := []updater.Updater{
+		stubUpdater{
+			name:      "brew",
+			updateErr: context.Canceled,
+		},
+	}
+
+	stats := executeUpdatesParallel(context.Background(), updaters, updater.UpdateOptions{}, 2)
+
+	if stats.Failed != 0 {
+		t.Fatalf("Failed = %d, want 0", stats.Failed)
+	}
+
+	if len(stats.Errors) != 1 {
+		t.Fatalf("Errors length = %d, want 1", len(stats.Errors))
+	}
+
+	if !strings.Contains(stats.Errors[0].Error(), "スキップ") {
+		t.Fatalf("Errors[0] = %q, want skipped message", stats.Errors[0].Error())
+	}
+}
+
+func TestExecuteUpdatesParallel_NonContextErrorIsFailed(t *testing.T) {
+	t.Parallel()
+
+	updaters := []updater.Updater{
+		stubUpdater{
+			name:      "brew",
+			updateErr: errors.New("update failure"),
+		},
+	}
+
+	stats := executeUpdatesParallel(context.Background(), updaters, updater.UpdateOptions{}, 2)
+
+	if stats.Failed != 1 {
+		t.Fatalf("Failed = %d, want 1", stats.Failed)
+	}
+
+	if len(stats.Errors) != 1 {
+		t.Fatalf("Errors length = %d, want 1", len(stats.Errors))
+	}
+
+	if !strings.Contains(stats.Errors[0].Error(), "update failure") {
+		t.Fatalf("Errors[0] = %q, want update failure", stats.Errors[0].Error())
 	}
 }
