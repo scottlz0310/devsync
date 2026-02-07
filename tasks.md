@@ -107,3 +107,12 @@
 - [ ] Windows (Winget/Scoop) 対応検証
 - [ ] GoReleaser によるリリース自動化
 - [ ] GitHub Actions CI/CD 設定
+- [ ] `sys update` / `repo update` の E2E テスト整備
+    - [ ] `--tui` 指定時の終了コードとサマリー整合を確認
+    - [ ] 非TTY環境での `--tui` 自動フォールバック挙動を確認
+- [ ] TUI UX 改善
+    - [ ] 失敗ジョブの詳細エラー表示（展開表示）を追加
+    - [ ] 長時間実行向けにログ保存オプション（ファイル出力）を追加
+- [ ] runner イベント基盤の活用拡張
+    - [ ] `devsync run`（将来 `tool update`）への進捗UI適用
+    - [ ] 通知機能向けイベントフックの追加
