@@ -68,6 +68,7 @@ func TestExecute(t *testing.T) {
 			wantSkipped: 0,
 			assertResults: func(t *testing.T, summary Summary) {
 				t.Helper()
+
 				if summary.Results[1].Err == nil {
 					t.Fatalf("失敗ジョブにエラーが入っていません")
 				}
@@ -145,6 +146,7 @@ func TestExecute(t *testing.T) {
 			t.Parallel()
 
 			var runCount int32
+
 			jobs := cloneJobs(tc.jobs, &runCount)
 			ctx := tc.buildContext()
 

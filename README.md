@@ -115,13 +115,16 @@ choco install go-task
 ```bash
 task --list      # 利用可能なタスク一覧
 
-# よく使うコマンド
+# 日常運用（まずこれ）
+task check       # 標準品質チェック（fmt → vet → test → lint）
+task daily       # task check のエイリアス
+
+# その他よく使うコマンド
 task build       # バイナリをビルド（dist/に出力）
 task test        # テスト実行
 task lint        # リンター実行
 task fmt         # コードフォーマット
 task dev         # 開発サイクル（fmt → test → build）
-task check       # 全品質チェック（CI相当）
 task pre-commit  # コミット前チェック
 task clean       # ビルド成果物を削除
 task tidy        # go mod tidy

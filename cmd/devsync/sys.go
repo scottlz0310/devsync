@@ -210,8 +210,8 @@ func executeUpdates(ctx context.Context, updaters []updater.Updater, opts update
 		}
 
 		printUpdaterHeader(u)
-		result, err := u.Update(ctx, opts)
 
+		result, err := u.Update(ctx, opts)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "❌ エラー: %v\n", err)
 			stats.Errors = append(stats.Errors, fmt.Errorf("%s: %w", u.Name(), err))
@@ -258,8 +258,10 @@ func executeUpdatesParallel(ctx context.Context, updaters []updater.Updater, opt
 					outputMu.Unlock()
 
 					statsMu.Lock()
+
 					stats.Errors = append(stats.Errors, fmt.Errorf("%s: %w", u.Name(), err))
 					stats.Failed++
+
 					statsMu.Unlock()
 
 					return err
@@ -271,9 +273,11 @@ func executeUpdatesParallel(ctx context.Context, updaters []updater.Updater, opt
 				outputMu.Unlock()
 
 				statsMu.Lock()
+
 				stats.Updated += result.UpdatedCount
 				stats.Failed += result.FailedCount
 				stats.Errors = append(stats.Errors, result.Errors...)
+
 				statsMu.Unlock()
 
 				return nil
