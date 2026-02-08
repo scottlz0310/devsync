@@ -302,6 +302,8 @@ task lint        # リンター実行
 task fmt         # コードフォーマット
 task dev         # 開発サイクル（fmt → test → build）
 task pre-commit  # コミット前チェック
+task secrets:install # gitleaks をインストール（初回のみ）
+task secrets     # gitleaks でシークレット混入をチェック
 task clean       # ビルド成果物を削除
 task tidy        # go mod tidy
 ```

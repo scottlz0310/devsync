@@ -82,6 +82,26 @@ tasks:
       - go vet {{.GO_PACKAGES}}
 
   # ============================================
+  # セキュリティ
+  # ============================================
+  secrets:install:
+    desc: gitleaks をインストール（go install）
+    cmds:
+      - go install github.com/zricethezav/gitleaks/v8@v8.30.0
+
+  secrets:
+    desc: シークレット混入チェック（gitleaks）
+    cmds:
+      - cmd: cmd /c "where gitleaks >NUL 2>NUL || (echo gitleaks が見つかりません。task secrets:install でインストールしてください。 & exit /b 1)"
+        platforms: [windows]
+      - cmd: gitleaks detect --redact
+        platforms: [windows]
+      - cmd: command -v gitleaks >/dev/null 2>&1 || { echo \"gitleaks が見つかりません。task secrets:install でインストールしてください。\"; exit 1; }
+        platforms: [linux, darwin]
+      - cmd: gitleaks detect --redact
+        platforms: [linux, darwin]
+
+  # ============================================
   # テスト
   # ============================================
   test:
