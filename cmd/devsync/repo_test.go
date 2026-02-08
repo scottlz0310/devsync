@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -419,19 +420,19 @@ func TestMergeRepoPaths(t *testing.T) {
 	t.Parallel()
 
 	discovered := []string{
-		"/tmp/repos/a",
-		"/tmp/repos/c",
+		filepath.Clean("/tmp/repos/a"),
+		filepath.Clean("/tmp/repos/c"),
 	}
 	bootstrapped := []string{
-		"/tmp/repos/b",
-		"/tmp/repos/a",
+		filepath.Clean("/tmp/repos/b"),
+		filepath.Clean("/tmp/repos/a"),
 	}
 
 	got := mergeRepoPaths(discovered, bootstrapped)
 	want := []string{
-		"/tmp/repos/a",
-		"/tmp/repos/b",
-		"/tmp/repos/c",
+		filepath.Clean("/tmp/repos/a"),
+		filepath.Clean("/tmp/repos/b"),
+		filepath.Clean("/tmp/repos/c"),
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -482,7 +483,14 @@ func TestListGitHubRepos(t *testing.T) {
 				t.Fatalf("repoExecCommandStep name = %q, want gh", name)
 			}
 
-			return exec.CommandContext(ctx, "sh", "-c", "echo 'auth failed' >&2; exit 1")
+			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestHelperProcess", "--")
+			cmd.Env = append(os.Environ(),
+				"GO_WANT_HELPER_PROCESS=1",
+				"DEVSYNC_HELPER_STDOUT=",
+				"DEVSYNC_HELPER_STDERR=auth failed\n",
+				"DEVSYNC_HELPER_EXIT_CODE=1",
+			)
+			return cmd
 		}
 
 		_, err := listGitHubRepos(context.Background(), "my-org")
@@ -526,14 +534,14 @@ func TestListGitHubRepos(t *testing.T) {
 				t.Fatalf("repoExecCommandStep args = %#v, want %#v", arg, wantArgs)
 			}
 
-			return exec.CommandContext(
-				ctx,
-				"sh",
-				"-c",
-				`cat <<'EOF'
-[{"name":"devsync","url":"https://github.com/scottlz0310/devsync.git","sshUrl":"git@github.com:scottlz0310/devsync.git","isArchived":false}]
-EOF`,
+			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestHelperProcess", "--")
+			cmd.Env = append(os.Environ(),
+				"GO_WANT_HELPER_PROCESS=1",
+				"DEVSYNC_HELPER_STDOUT=[{\"name\":\"devsync\",\"url\":\"https://github.com/scottlz0310/devsync.git\",\"sshUrl\":\"git@github.com:scottlz0310/devsync.git\",\"isArchived\":false}]\n",
+				"DEVSYNC_HELPER_STDERR=",
+				"DEVSYNC_HELPER_EXIT_CODE=0",
 			)
+			return cmd
 		}
 
 		got, err := listGitHubRepos(context.Background(), "my-owner")
@@ -553,4 +561,20 @@ EOF`,
 			t.Fatalf("listGitHubRepos() = %#v, want %#v", got, want)
 		}
 	})
+}
+
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	fmt.Fprint(os.Stdout, os.Getenv("DEVSYNC_HELPER_STDOUT"))
+	fmt.Fprint(os.Stderr, os.Getenv("DEVSYNC_HELPER_STDERR"))
+
+	code, err := strconv.Atoi(os.Getenv("DEVSYNC_HELPER_EXIT_CODE"))
+	if err != nil {
+		code = 0
+	}
+
+	os.Exit(code)
 }

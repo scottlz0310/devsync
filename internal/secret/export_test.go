@@ -1,6 +1,7 @@
 package secret
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -278,7 +279,12 @@ func TestDetectShell(t *testing.T) {
 			t.Setenv("SHELL", tt.shell)
 
 			result := DetectShell()
-			assert.Equal(t, tt.expected, result, tt.description)
+			expected := tt.expected
+			if runtime.GOOS == "windows" {
+				expected = ShellPowerShell
+			}
+
+			assert.Equal(t, expected, result, tt.description)
 		})
 	}
 }
@@ -316,7 +322,12 @@ func TestGetShellName(t *testing.T) {
 			t.Setenv("SHELL", tt.shell)
 
 			result := GetShellName()
-			assert.Equal(t, tt.expected, result)
+			expected := tt.expected
+			if runtime.GOOS == "windows" {
+				expected = string(ShellPowerShell)
+			}
+
+			assert.Equal(t, expected, result)
 		})
 	}
 }
@@ -361,6 +372,11 @@ func TestGetShellExecutable(t *testing.T) {
 			t.Setenv("SHELL", tt.shell)
 
 			result := GetShellExecutable()
+			if runtime.GOOS == "windows" {
+				assert.Contains(t, []string{"pwsh", "powershell"}, result)
+				return
+			}
+
 			tt.checkFunc(t, result)
 		})
 	}

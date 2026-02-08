@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/scottlz0310/devsync/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +54,7 @@ func TestLoad(t *testing.T) {
 	t.Run("設定ファイルがない場合はデフォルト値で成功", func(t *testing.T) {
 		// 一時ディレクトリを作成して HOME を変更
 		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		testutil.SetTestHome(t, tmpDir)
 
 		// currentConfigをリセット
 		currentConfig = nil
@@ -69,7 +70,7 @@ func TestLoad(t *testing.T) {
 
 	t.Run("有効なYAML設定ファイルの読み込み", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		testutil.SetTestHome(t, tmpDir)
 
 		// 設定ファイルを作成
 		configDir := filepath.Join(tmpDir, ".config", "devsync")
@@ -122,7 +123,7 @@ secrets:
 
 	t.Run("不正なYAMLの場合はエラー", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		testutil.SetTestHome(t, tmpDir)
 
 		// 不正なYAMLファイルを作成
 		configDir := filepath.Join(tmpDir, ".config", "devsync")
@@ -147,7 +148,7 @@ control:
 
 	t.Run("環境変数による設定の上書き", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		testutil.SetTestHome(t, tmpDir)
 
 		// 環境変数で設定を上書き
 		t.Setenv("DEVSYNC_CONTROL_CONCURRENCY", "32")
@@ -167,7 +168,7 @@ control:
 func TestGet(t *testing.T) {
 	t.Run("Loadが呼ばれていない場合は自動ロード", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		testutil.SetTestHome(t, tmpDir)
 
 		// currentConfigをリセット
 		currentConfig = nil
@@ -180,7 +181,7 @@ func TestGet(t *testing.T) {
 
 	t.Run("Loadが呼ばれた後はキャッシュされた設定を返す", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		testutil.SetTestHome(t, tmpDir)
 
 		// currentConfigをリセット
 		currentConfig = nil
@@ -198,7 +199,7 @@ func TestGet(t *testing.T) {
 func TestConfigPath(t *testing.T) {
 	t.Run("HOME から設定ファイルパスを生成", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		testutil.SetTestHome(t, tmpDir)
 
 		path, err := ConfigPath()
 		require.NoError(t, err)
@@ -211,7 +212,7 @@ func TestConfigPath(t *testing.T) {
 func TestConfigFileExists(t *testing.T) {
 	t.Run("設定ファイルがない場合", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		testutil.SetTestHome(t, tmpDir)
 
 		exists, path, err := ConfigFileExists()
 		require.NoError(t, err)
@@ -222,7 +223,7 @@ func TestConfigFileExists(t *testing.T) {
 
 	t.Run("設定ファイルがある場合", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		testutil.SetTestHome(t, tmpDir)
 
 		configPath := filepath.Join(tmpDir, ".config", "devsync", "config.yaml")
 		require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
@@ -237,7 +238,7 @@ func TestConfigFileExists(t *testing.T) {
 
 	t.Run("設定ファイルパスがディレクトリの場合はエラー", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		testutil.SetTestHome(t, tmpDir)
 
 		configPath := filepath.Join(tmpDir, ".config", "devsync", "config.yaml")
 		require.NoError(t, os.MkdirAll(configPath, 0o755))

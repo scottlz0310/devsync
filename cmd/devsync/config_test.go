@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/scottlz0310/devsync/internal/config"
+	"github.com/scottlz0310/devsync/internal/testutil"
 )
 
 func captureStderr(t *testing.T, fn func()) string {
@@ -68,7 +69,7 @@ func TestNormalizeRepoRoot(t *testing.T) {
 			name: "チルダ展開",
 			setup: func(t *testing.T) {
 				home := t.TempDir()
-				t.Setenv("HOME", home)
+				testutil.SetTestHome(t, home)
 			},
 			input: "~/src",
 			want:  "",
@@ -250,7 +251,7 @@ func TestResolveGitHubOwnerDefault(t *testing.T) {
 func TestLoadExistingConfigForInit(t *testing.T) {
 	t.Run("設定ファイル状態確認エラー時は警告を出してフォールバック", func(t *testing.T) {
 		home := t.TempDir()
-		t.Setenv("HOME", home)
+		testutil.SetTestHome(t, home)
 
 		configPath := filepath.Join(home, ".config", "devsync", "config.yaml")
 		if err := os.MkdirAll(configPath, 0o755); err != nil {
@@ -286,7 +287,7 @@ func TestLoadExistingConfigForInit(t *testing.T) {
 
 	t.Run("既存設定の読み込み失敗時は警告を出してフォールバック", func(t *testing.T) {
 		home := t.TempDir()
-		t.Setenv("HOME", home)
+		testutil.SetTestHome(t, home)
 
 		configDir := filepath.Join(home, ".config", "devsync")
 		if err := os.MkdirAll(configDir, 0o755); err != nil {
@@ -350,7 +351,7 @@ func TestBuildConfigInitDefaults(t *testing.T) {
 			existingCfg:         nil,
 			autoOwner:           "auto-user",
 			want: configInitDefaults{
-				RepoRoot:        "/home/dev/src",
+				RepoRoot:        filepath.Join("/home/dev", "src"),
 				GitHubOwner:     "auto-user",
 				Concurrency:     8,
 				EnabledManagers: []string{"apt", "snap"},
@@ -416,7 +417,7 @@ func TestBuildConfigInitDefaults(t *testing.T) {
 			},
 			autoOwner: "",
 			want: configInitDefaults{
-				RepoRoot:        "/home/dev/src",
+				RepoRoot:        filepath.Join("/home/dev", "src"),
 				GitHubOwner:     "",
 				Concurrency:     8,
 				EnabledManagers: promptOptions,

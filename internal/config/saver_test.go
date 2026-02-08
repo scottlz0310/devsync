@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/scottlz0310/devsync/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -13,7 +14,7 @@ import (
 func TestSave(t *testing.T) {
 	t.Run("正常系: デフォルトパスに保存", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		testutil.SetTestHome(t, tmpDir)
 
 		cfg := &Config{
 			Version: 1,
@@ -102,10 +103,13 @@ func TestSave(t *testing.T) {
 	})
 
 	t.Run("エラー系: 書き込み不可能なディレクトリ", func(t *testing.T) {
-		// /proc は書き込み不可能なため、エラーが期待される
+		tmpDir := t.TempDir()
+		blocked := filepath.Join(tmpDir, "blocked")
+		require.NoError(t, os.WriteFile(blocked, []byte("not a dir"), 0o644))
+
 		cfg := Default()
 
-		err := Save(cfg, "/proc/invalid/config.yaml")
+		err := Save(cfg, filepath.Join(blocked, "config.yaml"))
 		assert.Error(t, err)
 	})
 
