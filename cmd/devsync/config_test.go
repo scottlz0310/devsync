@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"io"
 	"os"
@@ -10,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf16"
 
 	"github.com/scottlz0310/devsync/internal/config"
 	"github.com/scottlz0310/devsync/internal/testutil"
@@ -512,6 +515,198 @@ func TestGeneratedShellScripts(t *testing.T) {
 			for _, phrase := range tc.requiredPhrases {
 				if !strings.Contains(script, phrase) {
 					t.Fatalf("generated script does not contain required phrase %q", phrase)
+				}
+			}
+		})
+	}
+}
+
+func TestDecodePowerShellTextOutput(t *testing.T) {
+	t.Parallel()
+
+	encodeUTF16 := func(order binary.ByteOrder, s string) []byte {
+		u16 := utf16.Encode([]rune(s))
+		out := make([]byte, len(u16)*2)
+		for i, v := range u16 {
+			order.PutUint16(out[i*2:i*2+2], v)
+		}
+		return out
+	}
+
+	testCases := []struct {
+		name  string
+		input []byte
+		want  string
+	}{
+		{
+			name:  "UTF-8/ASCII はそのまま返す",
+			input: []byte("SGVsbG8=\n"),
+			want:  "SGVsbG8=\n",
+		},
+		{
+			name:  "UTF-16LE (BOMあり) を復元できる",
+			input: append([]byte{0xFF, 0xFE}, encodeUTF16(binary.LittleEndian, "SGVsbG8=\r\n")...),
+			want:  "SGVsbG8=\r\n",
+		},
+		{
+			name:  "UTF-16BE (BOMあり) を復元できる",
+			input: append([]byte{0xFE, 0xFF}, encodeUTF16(binary.BigEndian, "SGVsbG8=\n")...),
+			want:  "SGVsbG8=\n",
+		},
+		{
+			name:  "UTF-16LE (BOMなし) でも NUL を含む場合は復元できる",
+			input: encodeUTF16(binary.LittleEndian, "SGVsbG8=\n"),
+			want:  "SGVsbG8=\n",
+		},
+		{
+			name:  "空入力は空文字",
+			input: nil,
+			want:  "",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := decodePowerShellTextOutput(tc.input)
+			if got != tc.want {
+				t.Fatalf("decodePowerShellTextOutput() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGetPowerShellProfilePathWithOutput(t *testing.T) {
+	t.Parallel()
+
+	encodeUTF16LEWithBOM := func(s string) []byte {
+		u16 := utf16.Encode([]rune(s))
+		out := make([]byte, 2+len(u16)*2)
+		out[0] = 0xFF
+		out[1] = 0xFE
+		for i, v := range u16 {
+			binary.LittleEndian.PutUint16(out[2+i*2:2+i*2+2], v)
+		}
+		return out
+	}
+
+	testCases := []struct {
+		name            string
+		shell           string
+		outputBuilder   func(profilePath string) []byte
+		outputErr       error
+		wantCommand     string
+		wantArgs        []string
+		wantProfilePath bool
+		wantDirCreated  bool
+		wantErr         bool
+	}{
+		{
+			name:  "pwsh は Base64(UTF-8) の出力を復元して返す",
+			shell: "pwsh",
+			outputBuilder: func(profilePath string) []byte {
+				encoded := base64.StdEncoding.EncodeToString([]byte(profilePath))
+				return []byte(encoded + "\r\n")
+			},
+			wantCommand:     "pwsh",
+			wantArgs:        []string{"-NoProfile", "-NonInteractive", "-Command", "[System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($PROFILE))"},
+			wantProfilePath: true,
+			wantDirCreated:  true,
+			wantErr:         false,
+		},
+		{
+			name:  "powershell は UTF-16LE (BOMあり) の出力でも復元できる",
+			shell: "powershell",
+			outputBuilder: func(profilePath string) []byte {
+				encoded := base64.StdEncoding.EncodeToString([]byte(profilePath))
+				return encodeUTF16LEWithBOM(encoded + "\r\n")
+			},
+			wantCommand:     "powershell",
+			wantArgs:        []string{"-NoProfile", "-NonInteractive", "-Command", "[System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($PROFILE))"},
+			wantProfilePath: true,
+			wantDirCreated:  true,
+			wantErr:         false,
+		},
+		{
+			name:  "出力が空ならエラー",
+			shell: "pwsh",
+			outputBuilder: func(string) []byte {
+				return []byte("\r\n")
+			},
+			wantCommand: "pwsh",
+			wantArgs:    []string{"-NoProfile", "-NonInteractive", "-Command", "[System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($PROFILE))"},
+			wantErr:     true,
+		},
+		{
+			name:  "Base64 デコードできなければエラー",
+			shell: "pwsh",
+			outputBuilder: func(string) []byte {
+				return []byte("not base64\r\n")
+			},
+			wantCommand: "pwsh",
+			wantArgs:    []string{"-NoProfile", "-NonInteractive", "-Command", "[System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($PROFILE))"},
+			wantErr:     true,
+		},
+		{
+			name:  "Base64 デコード後のパスが空ならエラー",
+			shell: "pwsh",
+			outputBuilder: func(string) []byte {
+				encoded := base64.StdEncoding.EncodeToString([]byte(" \r\n"))
+				return []byte(encoded + "\r\n")
+			},
+			wantCommand: "pwsh",
+			wantArgs:    []string{"-NoProfile", "-NonInteractive", "-Command", "[System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($PROFILE))"},
+			wantErr:     true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			profilePath := filepath.Join(root, "OneDrive", "ドキュメント", "PowerShell", "Microsoft.PowerShell_profile.ps1")
+			profileDir := filepath.Dir(profilePath)
+
+			gotCommand := ""
+			gotArgs := []string(nil)
+
+			output := tc.outputBuilder(profilePath)
+			got, err := getPowerShellProfilePathWithOutput(tc.shell, func(command string, args ...string) ([]byte, error) {
+				gotCommand = command
+				gotArgs = append([]string(nil), args...)
+				return output, tc.outputErr
+			})
+
+			if gotCommand != tc.wantCommand {
+				t.Fatalf("command = %q, want %q", gotCommand, tc.wantCommand)
+			}
+
+			if !reflect.DeepEqual(gotArgs, tc.wantArgs) {
+				t.Fatalf("args = %#v, want %#v", gotArgs, tc.wantArgs)
+			}
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("error = nil, want error")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tc.wantProfilePath && got != profilePath {
+				t.Fatalf("profilePath = %q, want %q", got, profilePath)
+			}
+
+			if tc.wantDirCreated {
+				if _, statErr := os.Stat(profileDir); statErr != nil {
+					t.Fatalf("profileDir should exist, statErr=%v", statErr)
 				}
 			}
 		})

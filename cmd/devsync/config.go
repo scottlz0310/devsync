@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
@@ -599,7 +603,11 @@ func generateShellInit(home string) error {
 
 	fmt.Printf("\n✅ %s に設定を追加しました！\n", rcFilePath)
 	fmt.Println("次回シェル起動時から自動的に devsync が利用可能になります。")
-	fmt.Printf("\n現在のシェルに反映するには: source %s\n", rcFilePath)
+	reloadCommand := fmt.Sprintf("source %s", rcFilePath)
+	if shell == shellPowerShell || shell == "pwsh" {
+		reloadCommand = ". $PROFILE"
+	}
+	fmt.Printf("\n現在のシェルに反映するには: %s\n", reloadCommand)
 
 	return nil
 }
@@ -634,19 +642,40 @@ func detectShell() string {
 
 // getPowerShellProfilePath は PowerShell のプロファイルパスを取得します
 func getPowerShellProfilePath(shell string) (string, error) {
-	var cmd *exec.Cmd
+	return getPowerShellProfilePathWithOutput(shell, func(command string, args ...string) ([]byte, error) {
+		cmd := exec.CommandContext(context.Background(), command, args...)
+		return cmd.Output()
+	})
+}
+
+type commandOutputFunc func(command string, args ...string) ([]byte, error)
+
+func getPowerShellProfilePathWithOutput(shell string, commandOutput commandOutputFunc) (string, error) {
+	command := "powershell"
 	if shell == "pwsh" {
-		cmd = exec.CommandContext(context.Background(), "pwsh", "-NoProfile", "-Command", "echo $PROFILE")
-	} else {
-		cmd = exec.CommandContext(context.Background(), "powershell", "-NoProfile", "-Command", "echo $PROFILE")
+		command = "pwsh"
 	}
 
-	output, err := cmd.Output()
+	// PowerShell の標準出力は環境によって文字コードが変わるため、パス文字列を Base64(UTF-8) で受け取ります。
+	// これにより、日本語を含むパスでも文字化けせず安全に復元できます。
+	psCommand := "[System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($PROFILE))"
+
+	output, err := commandOutput(command, "-NoProfile", "-NonInteractive", "-Command", psCommand)
 	if err != nil {
 		return "", err
 	}
 
-	profilePath := strings.TrimSpace(string(output))
+	encoded := strings.TrimSpace(decodePowerShellTextOutput(output))
+	if encoded == "" {
+		return "", fmt.Errorf("プロファイルパスの取得に失敗しました（出力が空です）")
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", fmt.Errorf("プロファイルパスのデコードに失敗しました: %w", err)
+	}
+
+	profilePath := strings.TrimSpace(string(decoded))
 	if profilePath == "" {
 		return "", fmt.Errorf("プロファイルパスが空です")
 	}
@@ -660,6 +689,48 @@ func getPowerShellProfilePath(shell string) (string, error) {
 	}
 
 	return profilePath, nil
+}
+
+func decodePowerShellTextOutput(output []byte) string {
+	if len(output) == 0 {
+		return ""
+	}
+
+	// BOM がある場合はそれを優先して扱う
+	if len(output) >= 2 && output[0] == 0xFF && output[1] == 0xFE {
+		return decodeUTF16(output[2:], binary.LittleEndian)
+	}
+
+	if len(output) >= 2 && output[0] == 0xFE && output[1] == 0xFF {
+		return decodeUTF16(output[2:], binary.BigEndian)
+	}
+
+	// BOM が無くても UTF-16LE のケースがあるため、NUL バイトを含む場合は UTF-16LE とみなします。
+	// Windows の標準出力で遭遇するパターンを優先します。
+	if bytes.IndexByte(output, 0) != -1 {
+		return decodeUTF16(output, binary.LittleEndian)
+	}
+
+	// それ以外は（Base64 の ASCII も含め）そのまま扱う
+	return string(output)
+}
+
+func decodeUTF16(data []byte, order binary.ByteOrder) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	// UTF-16 は 2 バイト単位。奇数長は末尾を切り捨てます。
+	if len(data)%2 == 1 {
+		data = data[:len(data)-1]
+	}
+
+	u16 := make([]uint16, 0, len(data)/2)
+	for i := 0; i < len(data); i += 2 {
+		u16 = append(u16, order.Uint16(data[i:i+2]))
+	}
+
+	return string(utf16.Decode(u16))
 }
 
 // appendToRcFile はrcファイルにsource行を追加します（マーカー付きで冪等性を保証）
