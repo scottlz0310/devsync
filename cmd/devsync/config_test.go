@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,6 +13,38 @@ import (
 
 	"github.com/scottlz0310/devsync/internal/config"
 )
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+
+	original := os.Stderr
+
+	readEnd, writeEnd, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() unexpected error: %v", err)
+	}
+
+	os.Stderr = writeEnd
+
+	fn()
+
+	if closeErr := writeEnd.Close(); closeErr != nil {
+		t.Fatalf("stderr writer close error: %v", closeErr)
+	}
+
+	os.Stderr = original
+
+	var buf bytes.Buffer
+	if _, copyErr := io.Copy(&buf, readEnd); copyErr != nil {
+		t.Fatalf("failed to copy stderr: %v", copyErr)
+	}
+
+	if closeErr := readEnd.Close(); closeErr != nil {
+		t.Fatalf("stderr reader close error: %v", closeErr)
+	}
+
+	return buf.String()
+}
 
 func TestNormalizeRepoRoot(t *testing.T) {
 	testCases := []struct {
@@ -211,6 +245,89 @@ func TestResolveGitHubOwnerDefault(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLoadExistingConfigForInit(t *testing.T) {
+	t.Run("設定ファイル状態確認エラー時は警告を出してフォールバック", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+
+		configPath := filepath.Join(home, ".config", "devsync", "config.yaml")
+		if err := os.MkdirAll(configPath, 0o755); err != nil {
+			t.Fatalf("failed to create directory at config path: %v", err)
+		}
+
+		var (
+			gotCfg  *config.Config
+			gotPath string
+			gotOK   bool
+		)
+
+		stderr := captureStderr(t, func() {
+			gotCfg, gotPath, gotOK = loadExistingConfigForInit()
+		})
+
+		if gotCfg != nil {
+			t.Fatalf("cfg = %#v, want nil", gotCfg)
+		}
+
+		if gotOK {
+			t.Fatalf("ok = true, want false")
+		}
+
+		if gotPath != configPath {
+			t.Fatalf("configPath = %q, want %q", gotPath, configPath)
+		}
+
+		if !strings.Contains(stderr, "設定ファイル状態の確認に失敗") {
+			t.Fatalf("stderr does not contain expected warning: %q", stderr)
+		}
+	})
+
+	t.Run("既存設定の読み込み失敗時は警告を出してフォールバック", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+
+		configDir := filepath.Join(home, ".config", "devsync")
+		if err := os.MkdirAll(configDir, 0o755); err != nil {
+			t.Fatalf("failed to create config dir: %v", err)
+		}
+
+		configPath := filepath.Join(configDir, "config.yaml")
+		if err := os.WriteFile(configPath, []byte("version: [invalid"), 0o644); err != nil {
+			t.Fatalf("failed to write invalid config: %v", err)
+		}
+
+		var (
+			gotCfg  *config.Config
+			gotPath string
+			gotOK   bool
+		)
+
+		stderr := captureStderr(t, func() {
+			gotCfg, gotPath, gotOK = loadExistingConfigForInit()
+		})
+
+		if gotCfg != nil {
+			t.Fatalf("cfg = %#v, want nil", gotCfg)
+		}
+
+		if gotOK {
+			t.Fatalf("ok = true, want false")
+		}
+
+		if gotPath != configPath {
+			t.Fatalf("configPath = %q, want %q", gotPath, configPath)
+		}
+
+		if !strings.Contains(stderr, "既存設定の読み込みに失敗") {
+			t.Fatalf("stderr does not contain expected warning: %q", stderr)
+		}
+
+		if !strings.Contains(stderr, configPath) {
+			t.Fatalf("stderr does not contain config path: %q", stderr)
+		}
+	})
 }
 
 func TestBuildConfigInitDefaults(t *testing.T) {

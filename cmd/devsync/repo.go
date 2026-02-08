@@ -34,7 +34,11 @@ var (
 var (
 	repoListGitHubReposStep = listGitHubRepos
 	repoCloneRepoStep       = cloneRepo
+	repoLookPathStep        = exec.LookPath
+	repoExecCommandStep     = exec.CommandContext
 )
+
+const githubRepoListLimit = 1000
 
 type bootstrapResult struct {
 	ReadyPaths  []string
@@ -528,20 +532,47 @@ func accumulateBootstrapResult(result *bootstrapResult, outcome bootstrapRepoOut
 }
 
 func listGitHubRepos(ctx context.Context, owner string) ([]githubRepo, error) {
-	if _, err := exec.LookPath("gh"); err != nil {
+	if _, err := repoLookPathStep("gh"); err != nil {
 		return nil, fmt.Errorf("gh コマンドが見つかりません: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "gh", "repo", "list", owner, "--limit", "1000", "--json", "name,url,sshUrl,isArchived")
+	cmd := repoExecCommandStep(
+		ctx,
+		"gh",
+		"repo",
+		"list",
+		owner,
+		"--limit",
+		strconv.Itoa(githubRepoListLimit),
+		"--json",
+		"name,url,sshUrl,isArchived",
+	)
 
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			stderr := strings.TrimSpace(string(exitErr.Stderr))
+			if stderr != "" {
+				return nil, fmt.Errorf("gh repo list の実行に失敗しました (owner=%s): %w: %s", owner, err, stderr)
+			}
+		}
+
+		return nil, fmt.Errorf("gh repo list の実行に失敗しました (owner=%s): %w", owner, err)
 	}
 
 	repos := []githubRepo{}
 	if err := json.Unmarshal(output, &repos); err != nil {
 		return nil, fmt.Errorf("GitHub リポジトリ一覧の解析に失敗: %w", err)
+	}
+
+	if len(repos) == githubRepoListLimit {
+		fmt.Fprintf(
+			os.Stderr,
+			"⚠️  GitHub 取得件数が上限 (%d件) に達しました。owner=%s の一部リポジトリが同期対象に含まれていない可能性があります。\n",
+			githubRepoListLimit,
+			owner,
+		)
 	}
 
 	return repos, nil

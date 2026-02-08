@@ -302,12 +302,23 @@ func resolveGitHubOwnerDefault(baseCtx context.Context, lookup func(context.Cont
 
 func loadExistingConfigForInit() (cfg *config.Config, configPath string, ok bool) {
 	exists, path, stateErr := config.ConfigFileExists()
-	if stateErr != nil || !exists {
+	if stateErr != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  設定ファイル状態の確認に失敗: %v\n", stateErr)
+		return nil, path, false
+	}
+
+	if !exists {
 		return nil, path, false
 	}
 
 	loadedCfg, loadErr := config.Load()
 	if loadErr != nil {
+		if strings.TrimSpace(path) != "" {
+			fmt.Fprintf(os.Stderr, "⚠️  既存設定の読み込みに失敗 (%s): %v\n", path, loadErr)
+		} else {
+			fmt.Fprintf(os.Stderr, "⚠️  既存設定の読み込みに失敗: %v\n", loadErr)
+		}
+
 		return nil, path, false
 	}
 

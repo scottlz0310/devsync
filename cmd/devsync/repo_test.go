@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -435,4 +437,120 @@ func TestMergeRepoPaths(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("mergeRepoPaths() = %#v, want %#v", got, want)
 	}
+}
+
+func TestListGitHubRepos(t *testing.T) {
+	originalLookPathStep := repoLookPathStep
+	originalCommandStep := repoExecCommandStep
+	t.Cleanup(func() {
+		repoLookPathStep = originalLookPathStep
+		repoExecCommandStep = originalCommandStep
+	})
+
+	t.Run("ghコマンドがない場合は文脈付きエラー", func(t *testing.T) {
+		repoLookPathStep = func(string) (string, error) {
+			return "", errors.New("not found")
+		}
+
+		repoExecCommandStep = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+			t.Fatalf("repoExecCommandStep should not be called when gh is missing")
+
+			return nil
+		}
+
+		_, err := listGitHubRepos(context.Background(), "my-owner")
+		if err == nil {
+			t.Fatalf("listGitHubRepos() error = nil, want error")
+		}
+
+		if !strings.Contains(err.Error(), "gh コマンドが見つかりません") {
+			t.Fatalf("error should contain missing gh message: %v", err)
+		}
+	})
+
+	t.Run("gh実行失敗時はownerとstderrを含む", func(t *testing.T) {
+		repoLookPathStep = func(file string) (string, error) {
+			if file != "gh" {
+				t.Fatalf("repoLookPathStep file = %q, want gh", file)
+			}
+
+			return "/usr/bin/gh", nil
+		}
+
+		repoExecCommandStep = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+			if name != "gh" {
+				t.Fatalf("repoExecCommandStep name = %q, want gh", name)
+			}
+
+			return exec.CommandContext(ctx, "sh", "-c", "echo 'auth failed' >&2; exit 1")
+		}
+
+		_, err := listGitHubRepos(context.Background(), "my-org")
+		if err == nil {
+			t.Fatalf("listGitHubRepos() error = nil, want error")
+		}
+
+		if !strings.Contains(err.Error(), "gh repo list の実行に失敗しました (owner=my-org)") {
+			t.Fatalf("error should contain owner context: %v", err)
+		}
+
+		if !strings.Contains(err.Error(), "auth failed") {
+			t.Fatalf("error should contain stderr details: %v", err)
+		}
+	})
+
+	t.Run("正常時はリポジトリ一覧を返す", func(t *testing.T) {
+		repoLookPathStep = func(file string) (string, error) {
+			if file != "gh" {
+				t.Fatalf("repoLookPathStep file = %q, want gh", file)
+			}
+
+			return "/usr/bin/gh", nil
+		}
+
+		repoExecCommandStep = func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+			if name != "gh" {
+				t.Fatalf("repoExecCommandStep name = %q, want gh", name)
+			}
+
+			wantArgs := []string{
+				"repo",
+				"list",
+				"my-owner",
+				"--limit",
+				"1000",
+				"--json",
+				"name,url,sshUrl,isArchived",
+			}
+			if !reflect.DeepEqual(arg, wantArgs) {
+				t.Fatalf("repoExecCommandStep args = %#v, want %#v", arg, wantArgs)
+			}
+
+			return exec.CommandContext(
+				ctx,
+				"sh",
+				"-c",
+				`cat <<'EOF'
+[{"name":"devsync","url":"https://github.com/scottlz0310/devsync.git","sshUrl":"git@github.com:scottlz0310/devsync.git","isArchived":false}]
+EOF`,
+			)
+		}
+
+		got, err := listGitHubRepos(context.Background(), "my-owner")
+		if err != nil {
+			t.Fatalf("listGitHubRepos() unexpected error: %v", err)
+		}
+
+		want := []githubRepo{
+			{
+				Name:       "devsync",
+				URL:        "https://github.com/scottlz0310/devsync.git",
+				SSHURL:     "git@github.com:scottlz0310/devsync.git",
+				IsArchived: false,
+			},
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("listGitHubRepos() = %#v, want %#v", got, want)
+		}
+	})
 }
