@@ -72,6 +72,22 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
+  test-windows:
+    name: Test (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        run: go test -v ./...
+
   build:
     name: Build
     runs-on: ubuntu-latest
