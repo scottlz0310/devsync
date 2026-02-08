@@ -105,6 +105,7 @@
 - [x] `snapd unavailable` 環境で `snap` を利用不可として自動スキップする判定を追加
 - [x] シェル連携スクリプトを改善（`devsync-load-env` の終了コード伝播 / `dev-sync` の `Bitwarden 解錠 → 環境変数読込 → devsync run` 導線化 / 実行パスのフォールバック）
 - [x] `config init` の GitHub オーナー入力を `gh auth` ログイン情報で自動補完（必要時のみ手動上書き）
+- [x] `config init` の再実行時に既存 `config.yaml` の値を初期値として再編集できるよう改善
 - [x] `devsync run` の `sys` / `repo` フローをプレースホルダーから実処理へ置換（`sys update` → `repo update`）
 - [ ] テストカバレッジ向上（現状18.5% → 目標50%）
     - [ ] `internal/config` のテスト追加

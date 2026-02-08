@@ -5,8 +5,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/scottlz0310/devsync/internal/config"
 )
 
 func TestNormalizeRepoRoot(t *testing.T) {
@@ -205,6 +208,126 @@ func TestResolveGitHubOwnerDefault(t *testing.T) {
 			got := resolveGitHubOwnerDefault(context.Background(), tc.lookup)
 			if got != tc.want {
 				t.Fatalf("resolveGitHubOwnerDefault() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBuildConfigInitDefaults(t *testing.T) {
+	t.Parallel()
+
+	promptOptions := []string{"apt", "brew", "go", "npm", "snap", "pipx", "cargo"}
+
+	testCases := []struct {
+		name                string
+		home                string
+		recommendedManagers []string
+		existingCfg         *config.Config
+		autoOwner           string
+		want                configInitDefaults
+	}{
+		{
+			name:                "既存設定なしは推奨値と自動オーナーを使用",
+			home:                "/home/dev",
+			recommendedManagers: []string{"apt", "snap"},
+			existingCfg:         nil,
+			autoOwner:           "auto-user",
+			want: configInitDefaults{
+				RepoRoot:        "/home/dev/src",
+				GitHubOwner:     "auto-user",
+				Concurrency:     8,
+				EnabledManagers: []string{"apt", "snap"},
+			},
+		},
+		{
+			name:                "既存設定がある場合は既存値を優先",
+			home:                "/home/dev",
+			recommendedManagers: []string{"brew", "go"},
+			existingCfg: &config.Config{
+				Control: config.ControlConfig{
+					Concurrency: 16,
+				},
+				Repo: config.RepoConfig{
+					Root: "/work/repos",
+					GitHub: config.GitHubConfig{
+						Owner: "my-org",
+					},
+				},
+				Sys: config.SysConfig{
+					Enable: []string{"apt", "unknown", "apt", "npm"},
+				},
+			},
+			autoOwner: "auto-user",
+			want: configInitDefaults{
+				RepoRoot:        "/work/repos",
+				GitHubOwner:     "my-org",
+				Concurrency:     16,
+				EnabledManagers: []string{"apt", "npm"},
+			},
+		},
+		{
+			name:                "既存設定のenableが空なら推奨値へフォールバック",
+			home:                "/home/dev",
+			recommendedManagers: []string{"brew", "not-supported"},
+			existingCfg: &config.Config{
+				Control: config.ControlConfig{
+					Concurrency: 0,
+				},
+				Repo: config.RepoConfig{
+					Root: "/repos",
+				},
+				Sys: config.SysConfig{
+					Enable: []string{},
+				},
+			},
+			autoOwner: "auto-user",
+			want: configInitDefaults{
+				RepoRoot:        "/repos",
+				GitHubOwner:     "auto-user",
+				Concurrency:     8,
+				EnabledManagers: []string{"brew"},
+			},
+		},
+		{
+			name:                "候補が空の場合はprompt options全体を使用",
+			home:                "/home/dev",
+			recommendedManagers: nil,
+			existingCfg: &config.Config{
+				Sys: config.SysConfig{
+					Enable: []string{"unknown"},
+				},
+			},
+			autoOwner: "",
+			want: configInitDefaults{
+				RepoRoot:        "/home/dev/src",
+				GitHubOwner:     "",
+				Concurrency:     8,
+				EnabledManagers: promptOptions,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := buildConfigInitDefaults(tc.home, tc.recommendedManagers, promptOptions, tc.existingCfg, tc.autoOwner)
+
+			if got.RepoRoot != tc.want.RepoRoot {
+				t.Fatalf("RepoRoot = %q, want %q", got.RepoRoot, tc.want.RepoRoot)
+			}
+
+			if got.GitHubOwner != tc.want.GitHubOwner {
+				t.Fatalf("GitHubOwner = %q, want %q", got.GitHubOwner, tc.want.GitHubOwner)
+			}
+
+			if got.Concurrency != tc.want.Concurrency {
+				t.Fatalf("Concurrency = %d, want %d", got.Concurrency, tc.want.Concurrency)
+			}
+
+			if !reflect.DeepEqual(got.EnabledManagers, tc.want.EnabledManagers) {
+				t.Fatalf("EnabledManagers = %#v, want %#v", got.EnabledManagers, tc.want.EnabledManagers)
 			}
 		})
 	}

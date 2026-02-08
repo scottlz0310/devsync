@@ -53,6 +53,7 @@ go build -o dist/devsync ./cmd/devsync
 初回セットアップでは、まず設定ファイルを生成してください。
 `config init` で指定した `repo.root` が未存在の場合は、作成確認が表示されます（拒否時はそのまま終了します）。
 `gh auth login` 済みの環境では、`config init` の GitHub オーナー名入力が自動補完されます（必要に応じて組織名へ変更可能）。
+既存の `config.yaml` がある場合、`config init` は現在値を初期値として再編集できます。
 
 ```bash
 devsync config init

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -25,6 +26,22 @@ const (
 )
 
 var errConfigInitCanceled = errors.New("config init canceled")
+
+var availableSystemManagers = []string{"apt", "brew", "go", "npm", "snap", "pipx", "cargo"}
+
+type configInitDefaults struct {
+	RepoRoot        string
+	GitHubOwner     string
+	Concurrency     int
+	EnabledManagers []string
+}
+
+type configInitAnswers struct {
+	RepoRoot        string
+	GithubOwner     string
+	Concurrency     int
+	EnabledManagers []string
+}
 
 var configCmd = &cobra.Command{
 	Use:   "config",
@@ -56,34 +73,74 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("devsync 設定ウィザードを開始します...")
 	fmt.Println()
 
-	// デフォルト値の準備
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
 
-	defaultRepoRoot := filepath.Join(home, "src")
 	recommendedManagers := env.GetRecommendedManagers()
 	defaultGitHubOwner := resolveGitHubOwnerDefault(cmd.Context(), queryGitHubOwner)
+	existingCfg, existingConfigPath, hasExistingConfig := loadExistingConfigForInit()
+	defaults := buildConfigInitDefaults(home, recommendedManagers, availableSystemManagers, existingCfg, defaultGitHubOwner)
 
-	if defaultGitHubOwner != "" {
-		fmt.Printf("🔎 gh auth から GitHub オーナー名を自動入力しました: %s\n\n", defaultGitHubOwner)
+	printConfigInitDefaultsInfo(defaultGitHubOwner, existingCfg, existingConfigPath, hasExistingConfig)
+
+	answers, err := askConfigInitAnswers(defaults)
+	if err != nil {
+		return handleConfigInitErr(err)
 	}
 
-	// 質問項目の定義
+	repoRoot, err := prepareRepoRoot(answers.RepoRoot, askCreateRepoRoot)
+	if err != nil {
+		return handleConfigInitErr(err)
+	}
+
+	answers.RepoRoot = repoRoot
+
+	printBitwardenGuide()
+
+	cfg := buildConfigFromInitAnswers(answers)
+
+	savePath := filepath.Join(home, ".config", "devsync", "config.yaml")
+	if err := confirmAndSaveConfig(cfg, savePath); err != nil {
+		return handleConfigInitErr(err)
+	}
+
+	fmt.Println("\n✅ 設定ファイルを作成しました！")
+	fmt.Println("変更するには `devsync config init` を再実行するか、直接ファイルを編集してください。")
+
+	// シェル初期化スクリプトの生成
+	if err := generateShellInit(home); err != nil {
+		fmt.Printf("\n⚠️  シェル初期化スクリプトの生成に失敗しました: %v\n", err)
+	}
+
+	return nil
+}
+
+func printConfigInitDefaultsInfo(defaultGitHubOwner string, existingCfg *config.Config, existingConfigPath string, hasExistingConfig bool) {
+	if hasExistingConfig {
+		fmt.Printf("🧩 既存設定を初期値として読み込みました: %s\n\n", existingConfigPath)
+	}
+
+	if defaultGitHubOwner != "" && (existingCfg == nil || strings.TrimSpace(existingCfg.Repo.GitHub.Owner) == "") {
+		fmt.Printf("🔎 gh auth から GitHub オーナー名を自動入力しました: %s\n\n", defaultGitHubOwner)
+	}
+}
+
+func askConfigInitAnswers(defaults configInitDefaults) (configInitAnswers, error) {
 	questions := []*survey.Question{
 		{
 			Name: "RepoRoot",
 			Prompt: &survey.Input{
 				Message: "リポジトリのルートディレクトリ:",
-				Default: defaultRepoRoot,
+				Default: defaults.RepoRoot,
 			},
 		},
 		{
 			Name: "GithubOwner",
 			Prompt: &survey.Input{
 				Message: "GitHubのオーナー名 (ユーザー名または組織名):",
-				Default: defaultGitHubOwner,
+				Default: defaults.GitHubOwner,
 				Help:    "gh auth login 済みなら自動入力されます。必要に応じて組織名へ変更してください。",
 			},
 		},
@@ -91,64 +148,42 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 			Name: "Concurrency",
 			Prompt: &survey.Input{
 				Message: "並列実行数:",
-				Default: "8",
-			},
-			Validate: func(val interface{}) error {
-				// シンプルな数値チェックがあれば良いが、survey.Input の結果はstring
-				// 厳密なバリデーションはConfigロード時に任せる手もあるが、軽くチェックしてもよい
-				return nil
+				Default: strconv.Itoa(defaults.Concurrency),
 			},
 		},
 		{
 			Name: "EnabledManagers",
 			Prompt: &survey.MultiSelect{
 				Message: "有効にするシステムマネージャ:",
-				Options: []string{"apt", "brew", "go", "npm", "snap", "pipx", "cargo"},
-				Default: recommendedManagers,
+				Options: availableSystemManagers,
+				Default: defaults.EnabledManagers,
 				Help:    "環境に合わせて自動検出された推奨値が選択されています。",
 			},
 		},
 	}
 
-	// 回答を受け取る構造体
-	answers := struct {
-		RepoRoot        string
-		GithubOwner     string
-		Concurrency     int
-		EnabledManagers []string
-	}{}
-
-	// 質問実行
-	surveyErr := survey.Ask(questions, &answers)
-	if surveyErr != nil {
-		if errors.Is(surveyErr, terminal.InterruptErr) {
-			fmt.Println("キャンセルしました。")
-			return nil
+	answers := configInitAnswers{}
+	if err := survey.Ask(questions, &answers); err != nil {
+		if errors.Is(err, terminal.InterruptErr) {
+			return configInitAnswers{}, errConfigInitCanceled
 		}
 
-		return surveyErr
+		return configInitAnswers{}, err
 	}
 
-	repoRoot, err := prepareRepoRoot(answers.RepoRoot, askCreateRepoRoot)
-	if err != nil {
-		if errors.Is(err, errConfigInitCanceled) {
-			fmt.Println("キャンセルしました。")
-			return nil
-		}
+	return answers, nil
+}
 
-		return err
-	}
-
-	answers.RepoRoot = repoRoot
-
+func printBitwardenGuide() {
 	fmt.Println()
 	fmt.Println("📝 Bitwarden連携について:")
 	fmt.Println("   環境変数は 'env:' プレフィックス付きの項目から自動的に読み込まれます。")
 	fmt.Println("   各項目に 'value' カスタムフィールドを設定してください。")
 	fmt.Println("   例: 項目名='env:GPAT', カスタムフィールド='value'に値を設定")
 	fmt.Println()
+}
 
-	// Config構造体の構築
+func buildConfigFromInitAnswers(answers configInitAnswers) *config.Config {
 	cfg := &config.Config{
 		Version: 1,
 		Control: config.ControlConfig{
@@ -183,15 +218,16 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	// 設定の微調整 (例: aptはsudoが必要など、デフォルト値を入れる)
 	for _, mgr := range answers.EnabledManagers {
 		if mgr == "apt" || mgr == "snap" {
 			cfg.Sys.Managers[mgr] = config.ManagerConfig{"use_sudo": true}
 		}
 	}
 
-	// 保存確認
-	savePath := filepath.Join(home, ".config", "devsync", "config.yaml")
+	return cfg
+}
+
+func confirmAndSaveConfig(cfg *config.Config, savePath string) error {
 	fmt.Printf("\n以下のパスに設定ファイルを保存します:\n%s\n", savePath)
 
 	confirm := false
@@ -201,28 +237,31 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := survey.AskOne(prompt, &confirm); err != nil {
+		if errors.Is(err, terminal.InterruptErr) {
+			return errConfigInitCanceled
+		}
+
 		return err
 	}
 
 	if !confirm {
-		fmt.Println("キャンセルしました。")
-		return nil
+		return errConfigInitCanceled
 	}
 
-	// 保存実行
 	if err := config.Save(cfg, savePath); err != nil {
 		return fmt.Errorf("設定ファイルの保存に失敗しました: %w", err)
 	}
 
-	fmt.Println("\n✅ 設定ファイルを作成しました！")
-	fmt.Println("変更するには `devsync config init` を再実行するか、直接ファイルを編集してください。")
+	return nil
+}
 
-	// シェル初期化スクリプトの生成
-	if err := generateShellInit(home); err != nil {
-		fmt.Printf("\n⚠️  シェル初期化スクリプトの生成に失敗しました: %v\n", err)
+func handleConfigInitErr(err error) error {
+	if errors.Is(err, errConfigInitCanceled) {
+		fmt.Println("キャンセルしました。")
+		return nil
 	}
 
-	return nil
+	return err
 }
 
 func askCreateRepoRoot(path string) (bool, error) {
@@ -259,6 +298,96 @@ func resolveGitHubOwnerDefault(baseCtx context.Context, lookup func(context.Cont
 	}
 
 	return trimmed
+}
+
+func loadExistingConfigForInit() (cfg *config.Config, configPath string, ok bool) {
+	exists, path, stateErr := config.ConfigFileExists()
+	if stateErr != nil || !exists {
+		return nil, path, false
+	}
+
+	loadedCfg, loadErr := config.Load()
+	if loadErr != nil {
+		return nil, path, false
+	}
+
+	return loadedCfg, path, true
+}
+
+func buildConfigInitDefaults(
+	home string,
+	recommendedManagers []string,
+	promptOptions []string,
+	existingCfg *config.Config,
+	autoGitHubOwner string,
+) configInitDefaults {
+	defaults := configInitDefaults{
+		RepoRoot:        filepath.Join(home, "src"),
+		GitHubOwner:     strings.TrimSpace(autoGitHubOwner),
+		Concurrency:     8,
+		EnabledManagers: append([]string(nil), recommendedManagers...),
+	}
+
+	if existingCfg != nil {
+		if existingRoot := strings.TrimSpace(existingCfg.Repo.Root); existingRoot != "" {
+			defaults.RepoRoot = existingRoot
+		}
+
+		if existingOwner := strings.TrimSpace(existingCfg.Repo.GitHub.Owner); existingOwner != "" {
+			defaults.GitHubOwner = existingOwner
+		}
+
+		if existingCfg.Control.Concurrency > 0 {
+			defaults.Concurrency = existingCfg.Control.Concurrency
+		}
+
+		if len(existingCfg.Sys.Enable) > 0 {
+			defaults.EnabledManagers = append([]string(nil), existingCfg.Sys.Enable...)
+		}
+	}
+
+	defaults.EnabledManagers = resolvePromptDefaultManagers(defaults.EnabledManagers, promptOptions, recommendedManagers)
+
+	return defaults
+}
+
+func resolvePromptDefaultManagers(candidates, promptOptions, recommendedManagers []string) []string {
+	allowed := make(map[string]struct{}, len(promptOptions))
+	for _, manager := range promptOptions {
+		allowed[manager] = struct{}{}
+	}
+
+	filtered := filterManagersByAllowedSet(candidates, allowed)
+	if len(filtered) > 0 {
+		return filtered
+	}
+
+	filtered = filterManagersByAllowedSet(recommendedManagers, allowed)
+	if len(filtered) > 0 {
+		return filtered
+	}
+
+	return append([]string(nil), promptOptions...)
+}
+
+func filterManagersByAllowedSet(candidates []string, allowed map[string]struct{}) []string {
+	filtered := make([]string, 0, len(candidates))
+	seen := make(map[string]struct{}, len(candidates))
+
+	for _, manager := range candidates {
+		if _, ok := allowed[manager]; !ok {
+			continue
+		}
+
+		if _, exists := seen[manager]; exists {
+			continue
+		}
+
+		filtered = append(filtered, manager)
+		seen[manager] = struct{}{}
+	}
+
+	return filtered
 }
 
 func queryGitHubOwner(baseCtx context.Context) (string, error) {
