@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -158,6 +159,55 @@ func TestEnsureRepoRoot(t *testing.T) {
 			t.Fatalf("target should not exist after cancel, statErr=%v", statErr)
 		}
 	})
+}
+
+func TestResolveGitHubOwnerDefault(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		lookup func(context.Context) (string, error)
+		want   string
+	}{
+		{
+			name: "取得成功時はtrimした値を返す",
+			lookup: func(context.Context) (string, error) {
+				return "scottlz0310\n", nil
+			},
+			want: "scottlz0310",
+		},
+		{
+			name: "空白のみは空文字を返す",
+			lookup: func(context.Context) (string, error) {
+				return "   \n", nil
+			},
+			want: "",
+		},
+		{
+			name: "取得失敗時は空文字を返す",
+			lookup: func(context.Context) (string, error) {
+				return "", errors.New("lookup failed")
+			},
+			want: "",
+		},
+		{
+			name:   "lookup未指定時は空文字を返す",
+			lookup: nil,
+			want:   "",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := resolveGitHubOwnerDefault(context.Background(), tc.lookup)
+			if got != tc.want {
+				t.Fatalf("resolveGitHubOwnerDefault() = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestGeneratedShellScripts(t *testing.T) {

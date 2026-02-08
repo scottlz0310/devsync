@@ -64,6 +64,11 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 
 	defaultRepoRoot := filepath.Join(home, "src")
 	recommendedManagers := env.GetRecommendedManagers()
+	defaultGitHubOwner := resolveGitHubOwnerDefault(cmd.Context(), queryGitHubOwner)
+
+	if defaultGitHubOwner != "" {
+		fmt.Printf("🔎 gh auth から GitHub オーナー名を自動入力しました: %s\n\n", defaultGitHubOwner)
+	}
 
 	// 質問項目の定義
 	questions := []*survey.Question{
@@ -78,7 +83,8 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 			Name: "GithubOwner",
 			Prompt: &survey.Input{
 				Message: "GitHubのオーナー名 (ユーザー名または組織名):",
-				Help:    "自分のリポジトリを同期する場合に指定します。",
+				Default: defaultGitHubOwner,
+				Help:    "gh auth login 済みなら自動入力されます。必要に応じて組織名へ変更してください。",
 			},
 		},
 		{
@@ -235,6 +241,46 @@ func askCreateRepoRoot(path string) (bool, error) {
 	}
 
 	return createDir, nil
+}
+
+func resolveGitHubOwnerDefault(baseCtx context.Context, lookup func(context.Context) (string, error)) string {
+	if lookup == nil {
+		return ""
+	}
+
+	owner, err := lookup(baseCtx)
+	if err != nil {
+		return ""
+	}
+
+	trimmed := strings.TrimSpace(owner)
+	if trimmed == "" {
+		return ""
+	}
+
+	return trimmed
+}
+
+func queryGitHubOwner(baseCtx context.Context) (string, error) {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return "", err
+	}
+
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
+
+	output, err := exec.CommandContext(baseCtx, "gh", "api", "user", "--jq", ".login").Output()
+	if err != nil {
+		return "", err
+	}
+
+	owner := strings.TrimSpace(string(output))
+	if owner == "" {
+		return "", fmt.Errorf("GitHubオーナー名を取得できませんでした")
+	}
+
+	return owner, nil
 }
 
 func prepareRepoRoot(input string, confirmCreate func(path string) (bool, error)) (string, error) {

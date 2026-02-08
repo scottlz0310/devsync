@@ -96,6 +96,7 @@
   - `dev-sync` 互換関数を `Bitwarden 解錠 → 環境変数を親シェルへ読み込み → devsync run` の順で実行するよう改善
   - 設定された実行パスが無効な場合に `command -v devsync`（PowerShell は `Get-Command`）へフォールバック
 - `config init` で指定した `repo.root` が未存在の場合に作成確認を追加（拒否時は保存せず終了）
+- `config init` の GitHub オーナー入力で `gh auth` のログインユーザーを自動補完するよう改善（手動入力は上書き可能）
 - README の初回セットアップ手順に `devsync config init` 必須を明記
 
 ### Infrastructure
