@@ -82,6 +82,43 @@ tasks:
       - go vet {{.GO_PACKAGES}}
 
   # ============================================
+  # セキュリティ
+  # ============================================
+  secrets:install:
+    desc: gitleaks をインストール（go install）
+    cmds:
+      - go install github.com/zricethezav/gitleaks/v8@v8.30.0
+
+  secrets:
+    desc: シークレット混入チェック（gitleaks）
+    cmds:
+      - cmd: powershell -NoProfile -Command '$exe = (Get-Command gitleaks -ErrorAction SilentlyContinue).Source; if (-not $exe) { $gobin = (go env GOBIN); if (-not [string]::IsNullOrWhiteSpace($gobin)) { $candidate = Join-Path $gobin \"gitleaks.exe\"; if (Test-Path $candidate) { $exe = $candidate } }; if (-not $exe) { $gopath = (go env GOPATH); $candidate = Join-Path $gopath \"bin\\\\gitleaks.exe\"; if (Test-Path $candidate) { $exe = $candidate } } }; if (-not $exe) { Write-Error \"gitleaks が見つかりません。task secrets:install でインストールしてください。\"; exit 1 }; & $exe detect --redact'
+        platforms: [windows]
+      - cmd: |
+          set -e
+
+          if command -v gitleaks >/dev/null 2>&1; then
+            gitleaks detect --redact
+            exit 0
+          fi
+
+          gobin="$(go env GOBIN)"
+          if [ -n "$gobin" ] && [ -x "$gobin/gitleaks" ]; then
+            "$gobin/gitleaks" detect --redact
+            exit 0
+          fi
+
+          gopath="$(go env GOPATH)"
+          if [ -x "$gopath/bin/gitleaks" ]; then
+            "$gopath/bin/gitleaks" detect --redact
+            exit 0
+          fi
+
+          echo 'gitleaks が見つかりません。task secrets:install でインストールしてください。' >&2
+          exit 1
+        platforms: [linux, darwin]
+
+  # ============================================
   # テスト
   # ============================================
   test:
