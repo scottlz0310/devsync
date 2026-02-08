@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
+
+	repomgr "github.com/scottlz0310/devsync/internal/repo"
 )
 
 func TestResolveRepoJobs(t *testing.T) {
@@ -227,5 +230,48 @@ func TestWrapRepoRootError(t *testing.T) {
 				t.Fatalf("wrapRepoRootError() hint = %v, want %v. got=%q", hasHint, tc.wantHint, wrapped.Error())
 			}
 		})
+	}
+}
+
+func TestWriteRepoTable(t *testing.T) {
+	t.Parallel()
+
+	repos := []repomgr.Info{
+		{
+			Name:        "devsync-manual",
+			Status:      repomgr.StatusDirty,
+			Ahead:       1,
+			HasUpstream: true,
+			Path:        "/home/dev/src/devsync-manual",
+		},
+		{
+			Name:        "devsync-no-upstream",
+			Status:      repomgr.StatusNoUpstream,
+			Ahead:       0,
+			HasUpstream: false,
+			Path:        "/home/dev/src/devsync-no-upstream",
+		},
+	}
+
+	var output bytes.Buffer
+	if err := writeRepoTable(&output, repos); err != nil {
+		t.Fatalf("writeRepoTable() unexpected error: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+	if len(lines) < 4 {
+		t.Fatalf("unexpected table output lines: %q", output.String())
+	}
+
+	dataLines := lines[2:]
+	for _, line := range dataLines {
+		if strings.Contains(line, "1/home/") || strings.Contains(line, "-/home/") {
+			t.Fatalf("Ahead列とパス列が結合されています: %q", line)
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) != 4 {
+			t.Fatalf("table row fields = %d, want 4. line=%q", len(fields), line)
+		}
 	}
 }

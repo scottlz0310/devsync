@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -299,7 +300,11 @@ func buildRepoJobDisplayName(root, repoPath string) string {
 }
 
 func printRepoTable(repos []repomgr.Info) error {
-	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
+	return writeRepoTable(os.Stdout, repos)
+}
+
+func writeRepoTable(output io.Writer, repos []repomgr.Info) error {
+	writer := tabwriter.NewWriter(output, 0, 8, 2, ' ', 0)
 
 	if _, err := fmt.Fprintln(writer, "名前\t状態\tAhead\tパス"); err != nil {
 		return err
