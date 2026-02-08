@@ -412,3 +412,27 @@ func TestBootstrapReposFromGitHub(t *testing.T) {
 		}
 	})
 }
+
+func TestMergeRepoPaths(t *testing.T) {
+	t.Parallel()
+
+	discovered := []string{
+		"/tmp/repos/a",
+		"/tmp/repos/c",
+	}
+	bootstrapped := []string{
+		"/tmp/repos/b",
+		"/tmp/repos/a",
+	}
+
+	got := mergeRepoPaths(discovered, bootstrapped)
+	want := []string{
+		"/tmp/repos/a",
+		"/tmp/repos/b",
+		"/tmp/repos/c",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("mergeRepoPaths() = %#v, want %#v", got, want)
+	}
+}

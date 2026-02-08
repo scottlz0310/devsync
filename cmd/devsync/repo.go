@@ -160,17 +160,15 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if len(repoPaths) == 0 {
-		bootstrap, bootstrapErr := bootstrapReposFromGitHub(ctx, root, cfg, opts.DryRun)
-		if bootstrapErr != nil {
-			return fmt.Errorf("GitHub リポジトリの取得に失敗しました: %w", bootstrapErr)
-		}
+	bootstrap, bootstrapErr := bootstrapReposFromGitHub(ctx, root, cfg, opts.DryRun)
+	if bootstrapErr != nil {
+		return fmt.Errorf("GitHub リポジトリの取得に失敗しました: %w", bootstrapErr)
+	}
 
-		repoPaths = bootstrap.ReadyPaths
-		if len(repoPaths) == 0 {
-			printNoTargetResult(root, bootstrap, repoUpdateTUI)
-			return nil
-		}
+	repoPaths = mergeRepoPaths(repoPaths, bootstrap.ReadyPaths)
+	if len(repoPaths) == 0 {
+		printNoTargetResult(root, bootstrap, repoUpdateTUI)
+		return nil
 	}
 
 	jobs := resolveRepoJobs(cfg.Control.Concurrency, repoUpdateJobs)
@@ -648,4 +646,11 @@ func uniqueSortedPaths(paths []string) []string {
 	sort.Strings(out)
 
 	return out
+}
+
+func mergeRepoPaths(discoveredPaths, bootstrappedPaths []string) []string {
+	merged := append([]string{}, discoveredPaths...)
+	merged = append(merged, bootstrappedPaths...)
+
+	return uniqueSortedPaths(merged)
 }

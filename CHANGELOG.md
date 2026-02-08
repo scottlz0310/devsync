@@ -99,7 +99,7 @@
 - `config init` の GitHub オーナー入力で `gh auth` のログインユーザーを自動補完するよう改善（手動入力は上書き可能）
 - `config init` 実行時に既存 `config.yaml` があれば現在値を初期値として再編集できるよう改善
 - `devsync run` の `sys` / `repo` セクションをプレースホルダーから実処理に置き換え、`sys update` → `repo update` を順次実行するよう改善
-- `repo update` で `repo.root` が0件のとき、`repo.github.owner` から GitHub 一覧を取得して不足リポジトリを clone したうえで更新を継続するよう改善（dry-run は計画表示のみ）
+- `repo update` で `repo.github.owner` を参照し、`repo.root` 配下で不足しているリポジトリを clone したうえで更新を継続するよう改善（dry-run は計画表示のみ）
 - README の初回セットアップ手順に `devsync config init` 必須を明記
 
 ### Infrastructure

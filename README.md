@@ -121,8 +121,8 @@ devsync repo list --root ~/src # ルートを上書きして一覧表示
 `repo list` は `config.yaml` の `repo.root` 配下をスキャンし、状態を表示します。
 状態は `クリーン` / `ダーティ` / `未プッシュ` / `追跡なし` です。
 `repo update` は `fetch --all`、`pull --rebase`、必要に応じて `submodule update` を実行します。
-`repo.root` 配下にローカルリポジトリが0件の場合は、`repo.github.owner` を使って GitHub から一覧取得し、
-不足分を `git clone` してから更新を継続します（`-n/--dry-run` 時は clone 計画のみ表示）。
+`repo.github.owner` が設定されている場合は、GitHub 一覧との差分を確認し、
+`repo.root` 配下で不足しているリポジトリを `git clone` してから更新を継続します（`-n/--dry-run` 時は clone 計画のみ表示）。
 submodule 更新の既定値は `config.yaml` の `repo.sync.submodule_update` で制御し、
 CLI では `--submodule` / `--no-submodule` で明示的に上書きできます。
 `--tui` 指定時は、更新の進捗・ログ・失敗状態をインタラクティブに表示します。
