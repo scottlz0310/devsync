@@ -104,6 +104,19 @@
 - [x] `sys update` 実行前の sudo 事前認証（単独フェーズ前/並列フェーズ前）を追加し、`use_sudo`/`sudo` の互換設定を整備
 - [x] `snapd unavailable` 環境で `snap` を利用不可として自動スキップする判定を追加
 - [x] シェル連携スクリプトを改善（`devsync-load-env` の終了コード伝播 / `dev-sync` の `Bitwarden 解錠 → 環境変数読込 → devsync run` 導線化 / 実行パスのフォールバック）
+- [x] `config init` の GitHub オーナー入力を `gh auth` ログイン情報で自動補完（必要時のみ手動上書き）
+- [x] `config init` の再実行時に既存 `config.yaml` の値を初期値として再編集できるよう改善
+- [x] `devsync run` の `sys` / `repo` フローをプレースホルダーから実処理へ置換（`sys update` → `repo update`）
+- [x] `repo update` で `repo.github.owner` 一覧との差分を補完し、不足リポジトリを clone する導線を追加（dry-run計画表示対応）
+- [ ] `repo sync` 安全運用の段階的強化（`setup-repo` 併用期間）
+    - [ ] 基本方針の明文化（破壊的操作は行わず、危険状態はスキップして理由を表示）
+    - [ ] 判定ロジックを table-driven tests で追加（境界値・失敗系を優先）
+    - [ ] 未コミット変更あり（tracked/untracked）時の更新スキップと理由表示
+    - [ ] stash 残存時の更新スキップと理由表示
+    - [ ] detached HEAD 時の更新スキップと理由表示
+    - [ ] upstream 未設定時の更新スキップ理由の統一（既存挙動の回帰テスト化）
+    - [ ] デフォルト以外の追跡ブランチ運用時の更新可否ルールを明文化し実装
+    - [ ] `setup-repo` との比較マニュアルテスト項目を固定化（差分が出るケースを回帰テスト候補へ追加）
 - [ ] テストカバレッジ向上（現状18.5% → 目標50%）
     - [ ] `internal/config` のテスト追加
     - [ ] `internal/updater` のテスト追加（モック使用）

@@ -4,7 +4,14 @@
 
 フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づいています。
 
-## [Unreleased] - v1.0.0
+## [Unreleased]
+
+### Changed
+
+- `README.md` に Alpha の既知の制約、`setup-repo` 併用の推奨運用、復旧手順（`config init` 再実行 / `repo.root` 見直し）を追記
+- CLI バージョン番号を `v0.1.0-alpha` に設定し、`devsync --version` で確認可能に変更
+
+## [v0.1.0-alpha] - 2026-02-08
 
 ### Added
 
@@ -96,6 +103,10 @@
   - `dev-sync` 互換関数を `Bitwarden 解錠 → 環境変数を親シェルへ読み込み → devsync run` の順で実行するよう改善
   - 設定された実行パスが無効な場合に `command -v devsync`（PowerShell は `Get-Command`）へフォールバック
 - `config init` で指定した `repo.root` が未存在の場合に作成確認を追加（拒否時は保存せず終了）
+- `config init` の GitHub オーナー入力で `gh auth` のログインユーザーを自動補完するよう改善（手動入力は上書き可能）
+- `config init` 実行時に既存 `config.yaml` があれば現在値を初期値として再編集できるよう改善
+- `devsync run` の `sys` / `repo` セクションをプレースホルダーから実処理に置き換え、`sys update` → `repo update` を順次実行するよう改善
+- `repo update` で `repo.github.owner` を参照し、`repo.root` 配下で不足しているリポジトリを clone したうえで更新を継続するよう改善（dry-run は計画表示のみ）
 - README の初回セットアップ手順に `devsync config init` 必須を明記
 
 ### Infrastructure
@@ -127,4 +138,5 @@
 
 ---
 
-[Unreleased]: https://github.com/scottlz0310/devsync/compare/main...HEAD
+[Unreleased]: https://github.com/scottlz0310/devsync/compare/v0.1.0-alpha...HEAD
+[v0.1.0-alpha]: https://github.com/scottlz0310/devsync/releases/tag/v0.1.0-alpha

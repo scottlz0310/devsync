@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +30,32 @@ var (
 	repoUpdateNoSubmodule bool
 	repoUpdateTUI         bool
 )
+
+var (
+	repoListGitHubReposStep = listGitHubRepos
+	repoCloneRepoStep       = cloneRepo
+	repoLookPathStep        = exec.LookPath
+	repoExecCommandStep     = exec.CommandContext
+)
+
+const githubRepoListLimit = 1000
+
+type bootstrapResult struct {
+	ReadyPaths  []string
+	PlannedOnly int
+}
+
+type githubRepo struct {
+	Name       string `json:"name"`
+	URL        string `json:"url"`
+	SSHURL     string `json:"sshUrl"`
+	IsArchived bool   `json:"isArchived"`
+}
+
+type bootstrapRepoOutcome struct {
+	ReadyPath string
+	Planned   bool
+}
 
 var repoCmd = &cobra.Command{
 	Use:   "repo",
@@ -129,15 +159,20 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 		return wrapRepoRootError(err, root, cmd.Flags().Changed("root"), configExists, configPath)
 	}
 
-	if len(repoPaths) == 0 {
-		printNoTargetTUIMessage(repoUpdateTUI, "repo update")
-		fmt.Printf("📝 更新対象のリポジトリが見つかりませんでした: %s\n", root)
-		return nil
-	}
-
 	opts, err := buildRepoUpdateOptions(cmd, cfg)
 	if err != nil {
 		return err
+	}
+
+	bootstrap, bootstrapErr := bootstrapReposFromGitHub(ctx, root, cfg, opts.DryRun)
+	if bootstrapErr != nil {
+		return fmt.Errorf("GitHub リポジトリの取得に失敗しました: %w", bootstrapErr)
+	}
+
+	repoPaths = mergeRepoPaths(repoPaths, bootstrap.ReadyPaths)
+	if len(repoPaths) == 0 {
+		printNoTargetResult(root, bootstrap, repoUpdateTUI)
+		return nil
 	}
 
 	jobs := resolveRepoJobs(cfg.Control.Concurrency, repoUpdateJobs)
@@ -299,7 +334,11 @@ func buildRepoJobDisplayName(root, repoPath string) string {
 }
 
 func printRepoTable(repos []repomgr.Info) error {
-	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
+	return writeRepoTable(os.Stdout, repos)
+}
+
+func writeRepoTable(output io.Writer, repos []repomgr.Info) error {
+	writer := tabwriter.NewWriter(output, 0, 8, 2, ' ', 0)
 
 	if _, err := fmt.Fprintln(writer, "名前\t状態\tAhead\tパス"); err != nil {
 		return err
@@ -389,4 +428,260 @@ func resolveRepoSubmoduleUpdate(configValue, enableOverride, disableOverride boo
 	}
 
 	return configValue, nil
+}
+
+func printNoTargetResult(root string, bootstrap bootstrapResult, tuiEnabled bool) {
+	printNoTargetTUIMessage(tuiEnabled, "repo update")
+
+	if bootstrap.PlannedOnly > 0 {
+		fmt.Printf("📝 DryRun のため clone 計画のみ表示しました（%d件）\n", bootstrap.PlannedOnly)
+		return
+	}
+
+	fmt.Printf("📝 更新対象のリポジトリが見つかりませんでした: %s\n", root)
+}
+
+func bootstrapReposFromGitHub(ctx context.Context, root string, cfg *config.Config, dryRun bool) (bootstrapResult, error) {
+	owner := strings.TrimSpace(cfg.Repo.GitHub.Owner)
+	if owner == "" {
+		return bootstrapResult{}, nil
+	}
+
+	fmt.Printf("🌐 GitHub からリポジトリ一覧を取得します（owner: %s）\n", owner)
+
+	repos, err := repoListGitHubReposStep(ctx, owner)
+	if err != nil {
+		return bootstrapResult{}, err
+	}
+
+	if len(repos) == 0 {
+		fmt.Printf("📝 GitHub で対象リポジトリが見つかりませんでした: %s\n", owner)
+		return bootstrapResult{}, nil
+	}
+
+	protocol := strings.TrimSpace(cfg.Repo.GitHub.Protocol)
+	result := bootstrapResult{
+		ReadyPaths: make([]string, 0, len(repos)),
+	}
+
+	for _, repo := range repos {
+		outcome, outcomeErr := prepareBootstrapRepo(ctx, root, protocol, repo, dryRun)
+		if outcomeErr != nil {
+			return bootstrapResult{}, outcomeErr
+		}
+
+		accumulateBootstrapResult(&result, outcome)
+	}
+
+	result.ReadyPaths = uniqueSortedPaths(result.ReadyPaths)
+	if !dryRun && len(result.ReadyPaths) > 0 {
+		fmt.Printf("✅ GitHub から %d 件のリポジトリを同期対象に追加しました\n\n", len(result.ReadyPaths))
+	}
+
+	return result, nil
+}
+
+func prepareBootstrapRepo(ctx context.Context, root, protocol string, repo githubRepo, dryRun bool) (bootstrapRepoOutcome, error) {
+	if repo.IsArchived {
+		return bootstrapRepoOutcome{}, nil
+	}
+
+	targetPath := filepath.Join(root, repo.Name)
+
+	pathStatus, statusErr := inspectRepoPath(targetPath)
+	if statusErr != nil {
+		return bootstrapRepoOutcome{}, statusErr
+	}
+
+	if pathStatus.exists && pathStatus.isGitRepo {
+		return bootstrapRepoOutcome{ReadyPath: targetPath}, nil
+	}
+
+	if pathStatus.exists {
+		return bootstrapRepoOutcome{}, fmt.Errorf("既存パスがGitリポジトリではありません: %s", targetPath)
+	}
+
+	cloneURL := selectRepoCloneURL(protocol, repo)
+	if cloneURL == "" {
+		fmt.Printf("⚠️  clone URL を解決できないためスキップ: %s\n", repo.Name)
+		return bootstrapRepoOutcome{}, nil
+	}
+
+	fmt.Printf("📥 取得: %s\n", repo.Name)
+	fmt.Printf("  $ git clone %s %s\n", cloneURL, targetPath)
+
+	if dryRun {
+		return bootstrapRepoOutcome{Planned: true}, nil
+	}
+
+	if cloneErr := repoCloneRepoStep(ctx, cloneURL, targetPath); cloneErr != nil {
+		return bootstrapRepoOutcome{}, cloneErr
+	}
+
+	return bootstrapRepoOutcome{ReadyPath: targetPath}, nil
+}
+
+func accumulateBootstrapResult(result *bootstrapResult, outcome bootstrapRepoOutcome) {
+	if outcome.ReadyPath != "" {
+		result.ReadyPaths = append(result.ReadyPaths, outcome.ReadyPath)
+	}
+
+	if outcome.Planned {
+		result.PlannedOnly++
+	}
+}
+
+func listGitHubRepos(ctx context.Context, owner string) ([]githubRepo, error) {
+	if _, err := repoLookPathStep("gh"); err != nil {
+		return nil, fmt.Errorf("gh コマンドが見つかりません: %w", err)
+	}
+
+	cmd := repoExecCommandStep(
+		ctx,
+		"gh",
+		"repo",
+		"list",
+		owner,
+		"--limit",
+		strconv.Itoa(githubRepoListLimit),
+		"--json",
+		"name,url,sshUrl,isArchived",
+	)
+
+	output, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			stderr := strings.TrimSpace(string(exitErr.Stderr))
+			if stderr != "" {
+				return nil, fmt.Errorf("gh repo list の実行に失敗しました (owner=%s): %w: %s", owner, err, stderr)
+			}
+		}
+
+		return nil, fmt.Errorf("gh repo list の実行に失敗しました (owner=%s): %w", owner, err)
+	}
+
+	repos := []githubRepo{}
+	if err := json.Unmarshal(output, &repos); err != nil {
+		return nil, fmt.Errorf("GitHub リポジトリ一覧の解析に失敗: %w", err)
+	}
+
+	if len(repos) == githubRepoListLimit {
+		fmt.Fprintf(
+			os.Stderr,
+			"⚠️  GitHub 取得件数が上限 (%d件) に達しました。owner=%s の一部リポジトリが同期対象に含まれていない可能性があります。\n",
+			githubRepoListLimit,
+			owner,
+		)
+	}
+
+	return repos, nil
+}
+
+func cloneRepo(ctx context.Context, cloneURL, targetPath string) error {
+	cmd := exec.CommandContext(ctx, "git", "clone", cloneURL, targetPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git clone に失敗 (%s): %w", cloneURL, err)
+	}
+
+	return nil
+}
+
+func selectRepoCloneURL(protocol string, repo githubRepo) string {
+	if protocol == "ssh" {
+		if strings.TrimSpace(repo.SSHURL) != "" {
+			return strings.TrimSpace(repo.SSHURL)
+		}
+
+		return strings.TrimSpace(repo.URL)
+	}
+
+	if strings.TrimSpace(repo.URL) != "" {
+		return strings.TrimSpace(repo.URL)
+	}
+
+	return strings.TrimSpace(repo.SSHURL)
+}
+
+type repoPathStatus struct {
+	exists    bool
+	isGitRepo bool
+}
+
+func inspectRepoPath(path string) (status repoPathStatus, err error) {
+	info, statErr := os.Stat(path)
+	if statErr != nil {
+		if errors.Is(statErr, os.ErrNotExist) {
+			return repoPathStatus{}, nil
+		}
+
+		return repoPathStatus{}, statErr
+	}
+
+	if !info.IsDir() {
+		return repoPathStatus{exists: true, isGitRepo: false}, nil
+	}
+
+	gitPath := filepath.Join(path, ".git")
+
+	gitInfo, gitErr := os.Stat(gitPath)
+	if gitErr != nil {
+		if errors.Is(gitErr, os.ErrNotExist) {
+			return repoPathStatus{exists: true, isGitRepo: false}, nil
+		}
+
+		return repoPathStatus{}, gitErr
+	}
+
+	if gitInfo.IsDir() {
+		return repoPathStatus{exists: true, isGitRepo: true}, nil
+	}
+
+	if !gitInfo.Mode().IsRegular() {
+		return repoPathStatus{exists: true, isGitRepo: false}, nil
+	}
+
+	content, readErr := os.ReadFile(gitPath)
+	if readErr != nil {
+		return repoPathStatus{}, readErr
+	}
+
+	line := strings.TrimSpace(string(content))
+	if !strings.HasPrefix(line, "gitdir:") {
+		return repoPathStatus{exists: true, isGitRepo: false}, nil
+	}
+
+	isGitRepo := strings.TrimSpace(strings.TrimPrefix(line, "gitdir:")) != ""
+
+	return repoPathStatus{exists: true, isGitRepo: isGitRepo}, nil
+}
+
+func uniqueSortedPaths(paths []string) []string {
+	uniq := make(map[string]struct{}, len(paths))
+	out := make([]string, 0, len(paths))
+
+	for _, path := range paths {
+		clean := filepath.Clean(path)
+		if _, exists := uniq[clean]; exists {
+			continue
+		}
+
+		uniq[clean] = struct{}{}
+		out = append(out, clean)
+	}
+
+	sort.Strings(out)
+
+	return out
+}
+
+func mergeRepoPaths(discoveredPaths, bootstrappedPaths []string) []string {
+	merged := append([]string{}, discoveredPaths...)
+	merged = append(merged, bootstrappedPaths...)
+
+	return uniqueSortedPaths(merged)
 }
