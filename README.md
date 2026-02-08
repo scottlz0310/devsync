@@ -84,6 +84,7 @@ type dev-sync
 
 ### メインコマンド
 ```
+devsync --version      # バージョン表示（現在: v0.1.0-alpha）
 devsync run           # 日次の統合タスクを実行（Bitwarden解錠→環境変数読込→更新処理）
 devsync doctor        # 依存ツール（git, bw等）と環境設定の診断
 ```
@@ -141,6 +142,22 @@ devsync config uninstall  # シェル設定からdevsyncを削除
 
 ### 予定機能
 - `devsync repo cleanup`: マージ済みブランチの整理（未実装）
+
+## 🚧 Alpha リリース方針（v0.1.0-alpha）
+
+本バージョンは **運用検証向け Alpha** です。安定化期間中は `setup-repo` との併用を推奨します。
+
+### 推奨運用（当面）
+
+- リポジトリ同期は `devsync repo update` と `setup-repo` を並行利用し、差分がないことを確認しながら移行する
+- `repo.root` は `~/workspace` または `~/src` のどちらか一方に固定して運用する
+- `devsync run` は `env -> sys update -> repo update` の実処理フローを実行し、日常運用の確認に使う
+
+### 既知の制約
+
+- `repo` 系は安全側優先のため、運用状態によっては更新をスキップする（例: upstream 未設定など）
+- `repo sync` のエッジケース（未コミット変更、stash、detached HEAD、非標準追跡ブランチ）は段階的に安定化中
+- `sys` パッケージマネージャ対応は `sysup` 同等以上へ拡張中（追加対応は `tasks.md` 管理）
 
 ## 🧪 日常運用（マニュアルテスト手順）
 
@@ -200,6 +217,18 @@ devsync repo update --tui -j 4
 - 失敗件数が 0 か
 - スキップ理由が想定どおりか（キャンセル/タイムアウトなど）
 - 必要に応じて `--verbose` で詳細ログを再確認
+
+## 🧯 トラブル時の復旧手順
+
+問題が出た場合は、まず次の順で復旧してください。
+
+1. 設定再生成: `devsync config init`
+2. 設定確認: `devsync doctor`
+3. `repo.root` 見直し: `~/.config/devsync/config.yaml` の `repo.root` が実在し、運用対象と一致しているか確認
+4. Dry-run 再確認:
+   - `devsync sys update -n --tui`
+   - `devsync repo update -n --tui`
+5. 必要に応じて `setup-repo` で整合を取り、再度 `devsync repo update` を実行
 
 ## 🔑 環境変数の使用
 
@@ -285,7 +314,7 @@ task tidy        # go mod tidy
 
 ## 📅 ステータス
 
-現在 **v0.1 計画 / 初期開発** フェーズです。
+現在 **v0.1.0-alpha（運用検証フェーズ）** です。
 詳細なロードマップについては [docs/Implementation_Plan.md](docs/Implementation_Plan.md) を参照してください。
 
 ## 📄 ライセンス

@@ -4,7 +4,14 @@
 
 フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づいています。
 
-## [Unreleased] - v1.0.0
+## [Unreleased]
+
+### Changed
+
+- `README.md` に Alpha の既知の制約、`setup-repo` 併用の推奨運用、復旧手順（`config init` 再実行 / `repo.root` 見直し）を追記
+- CLI バージョン番号を `v0.1.0-alpha` に設定し、`devsync --version` で確認可能に変更
+
+## [v0.1.0-alpha] - 2026-02-08
 
 ### Added
 
@@ -131,4 +138,5 @@
 
 ---
 
-[Unreleased]: https://github.com/scottlz0310/devsync/compare/main...HEAD
+[Unreleased]: https://github.com/scottlz0310/devsync/compare/v0.1.0-alpha...HEAD
+[v0.1.0-alpha]: https://github.com/scottlz0310/devsync/releases/tag/v0.1.0-alpha

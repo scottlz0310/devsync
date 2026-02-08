@@ -8,9 +8,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const appVersion = "v0.1.0-alpha"
+
 var rootCmd = &cobra.Command{
 	Use:           "devsync",
 	Short:         "DevSync: 開発環境運用ツール",
+	Version:       appVersion,
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Long: `DevSync は開発環境の運用作業を統合する CLI ツールです。
