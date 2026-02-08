@@ -183,7 +183,7 @@ devsync run
 
 `dev-sync` は最初に Bitwarden のアンロックと環境変数注入を実行し、親シェルにも環境変数を反映したうえで `devsync run` を実行します。
 `devsync run` 単体で実行した場合は、サブプロセス内のみ環境変数が注入されます。
-この時点では `sys` / `repo` の統合処理は段階的実装中のため、プレースホルダー表示になる場合があります。
+`devsync run` では続けて `sys update` と `repo update` を順次実行します。
 
 ### 4. 本実行（通常運用）
 

@@ -8,6 +8,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	runUnlockStep     = secret.Unlock
+	runLoadEnvStep    = secret.LoadEnv
+	runSysUpdateStep  = runSysUpdate
+	runRepoUpdateStep = runRepoUpdate
+)
+
 // runCmd は日次処理を実行するコマンドの定義です
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -18,9 +25,8 @@ var runCmd = &cobra.Command{
 処理順序:
   1. Bitwarden のアンロック
   2. 環境変数の読み込み (GPAT など)
-  3. リポジトリ設定の自動化
-  4. システム更新
-  5. リポジトリ同期`,
+  3. システム更新
+  4. リポジトリ同期`,
 	RunE: runDaily,
 }
 
@@ -35,7 +41,7 @@ func runDaily(cmd *cobra.Command, args []string) error {
 	// 1. Bitwarden のアンロック
 	fmt.Println("🔐 シークレットをアンロック中...")
 
-	if err := secret.Unlock(); err != nil {
+	if err := runUnlockStep(); err != nil {
 		fmt.Fprintf(os.Stderr, "❌ Bitwarden のアンロックに失敗: %v\n", err)
 		return err
 	}
@@ -44,7 +50,7 @@ func runDaily(cmd *cobra.Command, args []string) error {
 
 	// 2. 環境変数の読み込み
 	// 環境変数の読み込みは失敗しても続行する（非致命的エラー）
-	stats, err := secret.LoadEnv()
+	stats, err := runLoadEnvStep()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "⚠️  環境変数の読み込みに失敗: %v\n", err)
 	}
@@ -58,14 +64,22 @@ func runDaily(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 
-	// 3. システム更新（将来実装）
+	// 3. システム更新
 	fmt.Println("🛠  システムを更新中...")
-	fmt.Println("（sysup update の統合は今後実装予定）")
+
+	if err := runSysUpdateStep(cmd, nil); err != nil {
+		return fmt.Errorf("システム更新に失敗しました: %w", err)
+	}
+
 	fmt.Println()
 
-	// 4. リポジトリ同期（将来実装）
+	// 4. リポジトリ同期
 	fmt.Println("📦 リポジトリを同期中...")
-	fmt.Println("（setup-repo sync の統合は今後実装予定）")
+
+	if err := runRepoUpdateStep(cmd, nil); err != nil {
+		return fmt.Errorf("リポジトリ同期に失敗しました: %w", err)
+	}
+
 	fmt.Println()
 
 	fmt.Println("✅ 開発環境は最新の状態です。")
