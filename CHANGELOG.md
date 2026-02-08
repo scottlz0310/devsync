@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- gitleaks によるシークレット混入チェックを追加（GitHub Actions / `task secrets`）
+
 ### Changed
 
 - `README.md` に Alpha の既知の制約、`setup-repo` 併用の推奨運用、復旧手順（`config init` 再実行 / `repo.root` 見直し）を追記
