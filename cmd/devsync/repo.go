@@ -330,7 +330,8 @@ func buildRepoJobDisplayName(root, repoPath string) string {
 		return filepath.Base(cleanRepoPath)
 	}
 
-	return cleanRel
+	// Windows でも表示名は GitHub/パス表記に合わせて "/" 区切りに統一する。
+	return filepath.ToSlash(cleanRel)
 }
 
 func printRepoTable(repos []repomgr.Info) error {

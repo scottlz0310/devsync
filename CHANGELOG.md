@@ -16,6 +16,15 @@
 - CLI バージョン番号を `v0.1.0-alpha` に設定し、`devsync --version` で確認可能に変更
 - PowerShell 連携スクリプトの `devsync-load-env` で `env export` の複数行出力を正しく連結して `Invoke-Expression` に渡すよう修正（`System.Object[]` 型エラーを解消）
 - PowerShell 連携スクリプトの `dev-sync` で `devsync-unlock` / `devsync-load-env` の成否判定を `$LASTEXITCODE` 依存から関数戻り値判定に変更し、失敗時に後続処理へ進まないよう修正
+- `repo update` のジョブ表示名を Windows でも `/` 区切りで表示するよう統一
+
+### Fixed
+
+- Windows 環境で `go test ./...` が失敗する問題を修正（ホームディレクトリ環境変数のテスト分離、`gh` 実行モックの Windows 互換化など）
+
+### Infrastructure
+
+- GitHub Actions CI に Windows ランナーでのテスト実行を追加（`go test ./...`）
 
 ## [v0.1.0-alpha] - 2026-02-08
 

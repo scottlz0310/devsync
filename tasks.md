@@ -98,6 +98,8 @@
     - [x] `wsl` から `wsl_v5` へ移行（非推奨警告対応）
 - [x] 日常運用コマンドを `task check` に統一（`task daily` 追加）
 - [x] gitleaks によるシークレット混入チェックを追加（GitHub Actions / `task secrets`）
+- [x] Windows 環境で `go test ./...` が通るようにテストをクロスプラットフォーム化（HOME/USERPROFILE 分離など）
+- [x] GitHub Actions CI に Windows ランナーでのテスト実行を追加（`go test ./...`）
 - [x] `repo update` のレビュー指摘対応（DryRun計画整合 / `.git` 判定厳格化 / submoduleフラグ整理）
 - [x] 初回運用導線の改善（`config init` 誘導 / `doctor` 設定表示の明確化 / エラー重複解消 / `sys list` 有効列の明示 / `--tui` 対象0件メッセージ）
 - [x] `sys.enable` に未インストールのマネージャが含まれる場合の警告スキップ動作を整備（処理継続）

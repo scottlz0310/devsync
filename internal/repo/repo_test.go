@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/scottlz0310/devsync/internal/testutil"
 )
 
 func TestDiscover(t *testing.T) {
@@ -42,7 +44,7 @@ func TestDiscover(t *testing.T) {
 
 	t.Run("正常系: チルダ展開", func(t *testing.T) {
 		home := t.TempDir()
-		t.Setenv("HOME", home)
+		testutil.SetTestHome(t, home)
 
 		workspace := filepath.Join(home, "src")
 		repoA := filepath.Join(workspace, "repo-a")
