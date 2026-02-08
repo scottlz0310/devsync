@@ -107,6 +107,7 @@
 - [x] `config init` の GitHub オーナー入力を `gh auth` ログイン情報で自動補完（必要時のみ手動上書き）
 - [x] `config init` の再実行時に既存 `config.yaml` の値を初期値として再編集できるよう改善
 - [x] `devsync run` の `sys` / `repo` フローをプレースホルダーから実処理へ置換（`sys update` → `repo update`）
+- [x] `repo update` でローカル0件時に `repo.github.owner` から不足リポジトリを取得・clone する導線を追加（dry-run計画表示対応）
 - [ ] テストカバレッジ向上（現状18.5% → 目標50%）
     - [ ] `internal/config` のテスト追加
     - [ ] `internal/updater` のテスト追加（モック使用）
