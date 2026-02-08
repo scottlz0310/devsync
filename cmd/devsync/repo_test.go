@@ -484,12 +484,14 @@ func TestListGitHubRepos(t *testing.T) {
 			}
 
 			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestHelperProcess", "--")
+
 			cmd.Env = append(os.Environ(),
 				"GO_WANT_HELPER_PROCESS=1",
 				"DEVSYNC_HELPER_STDOUT=",
 				"DEVSYNC_HELPER_STDERR=auth failed\n",
 				"DEVSYNC_HELPER_EXIT_CODE=1",
 			)
+
 			return cmd
 		}
 
@@ -535,12 +537,14 @@ func TestListGitHubRepos(t *testing.T) {
 			}
 
 			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestHelperProcess", "--")
+
 			cmd.Env = append(os.Environ(),
 				"GO_WANT_HELPER_PROCESS=1",
 				"DEVSYNC_HELPER_STDOUT=[{\"name\":\"devsync\",\"url\":\"https://github.com/scottlz0310/devsync.git\",\"sshUrl\":\"git@github.com:scottlz0310/devsync.git\",\"isArchived\":false}]\n",
 				"DEVSYNC_HELPER_STDERR=",
 				"DEVSYNC_HELPER_EXIT_CODE=0",
 			)
+
 			return cmd
 		}
 
@@ -564,12 +568,19 @@ func TestListGitHubRepos(t *testing.T) {
 }
 
 func TestHelperProcess(t *testing.T) {
+	t.Helper()
+
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
 	}
 
-	fmt.Fprint(os.Stdout, os.Getenv("DEVSYNC_HELPER_STDOUT"))
-	fmt.Fprint(os.Stderr, os.Getenv("DEVSYNC_HELPER_STDERR"))
+	if _, err := fmt.Fprint(os.Stdout, os.Getenv("DEVSYNC_HELPER_STDOUT")); err != nil {
+		os.Exit(2)
+	}
+
+	if _, err := fmt.Fprint(os.Stderr, os.Getenv("DEVSYNC_HELPER_STDERR")); err != nil {
+		os.Exit(2)
+	}
 
 	code, err := strconv.Atoi(os.Getenv("DEVSYNC_HELPER_EXIT_CODE"))
 	if err != nil {

@@ -279,6 +279,7 @@ func TestDetectShell(t *testing.T) {
 			t.Setenv("SHELL", tt.shell)
 
 			result := DetectShell()
+
 			expected := tt.expected
 			if runtime.GOOS == "windows" {
 				expected = ShellPowerShell
@@ -322,6 +323,7 @@ func TestGetShellName(t *testing.T) {
 			t.Setenv("SHELL", tt.shell)
 
 			result := GetShellName()
+
 			expected := tt.expected
 			if runtime.GOOS == "windows" {
 				expected = string(ShellPowerShell)

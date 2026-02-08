@@ -351,7 +351,7 @@ func TestBuildConfigInitDefaults(t *testing.T) {
 			existingCfg:         nil,
 			autoOwner:           "auto-user",
 			want: configInitDefaults{
-				RepoRoot:        filepath.Join("/home/dev", "src"),
+				RepoRoot:        filepath.FromSlash("/home/dev/src"),
 				GitHubOwner:     "auto-user",
 				Concurrency:     8,
 				EnabledManagers: []string{"apt", "snap"},
@@ -417,7 +417,7 @@ func TestBuildConfigInitDefaults(t *testing.T) {
 			},
 			autoOwner: "",
 			want: configInitDefaults{
-				RepoRoot:        filepath.Join("/home/dev", "src"),
+				RepoRoot:        filepath.FromSlash("/home/dev/src"),
 				GitHubOwner:     "",
 				Concurrency:     8,
 				EnabledManagers: promptOptions,
