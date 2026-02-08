@@ -202,6 +202,8 @@ func TestGeneratedShellScripts(t *testing.T) {
 				`$token = & bw unlock --raw`,
 				`$envExports = & $DEVSYNC_PATH env export`,
 				`if ($LASTEXITCODE -ne 0) { return $LASTEXITCODE }`,
+				`Invoke-Expression -Command $envExports -ErrorAction Stop`,
+				`Write-Error "環境変数の読み込み中にエラーが発生しました: $_"`,
 				`devsync-unlock`,
 				`devsync-load-env`,
 				`& $DEVSYNC_PATH run @args`,

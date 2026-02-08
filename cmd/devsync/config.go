@@ -708,8 +708,14 @@ function devsync-load-env {
   $envExports = & $DEVSYNC_PATH env export
   if ($LASTEXITCODE -ne 0) { return $LASTEXITCODE }
 
-  $envExports | Invoke-Expression
-  return $LASTEXITCODE
+  try {
+    Invoke-Expression -Command $envExports -ErrorAction Stop
+  } catch {
+    Write-Error "環境変数の読み込み中にエラーが発生しました: $_"
+    return 1
+  }
+
+  return 0
 }
 
 # dev-sync 互換関数（参考実装との互換性）
