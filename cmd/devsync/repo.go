@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"text/tabwriter"
 	"time"
@@ -163,7 +164,7 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 
-	execJobs := buildRepoUpdateJobs(repoPaths, opts, useTUI)
+	execJobs := buildRepoUpdateJobs(root, repoPaths, opts, useTUI)
 	summary := runJobsWithOptionalTUI(ctx, "repo update 進捗", jobs, execJobs, useTUI)
 
 	printRepoUpdateSummary(summary)
@@ -206,13 +207,24 @@ func buildRepoUpdateOptions(cmd *cobra.Command, cfg *config.Config) (repomgr.Upd
 	return opts, nil
 }
 
-func buildRepoUpdateJobs(repoPaths []string, opts repomgr.UpdateOptions, useTUI bool) []runner.Job {
+func buildRepoUpdateJobs(root string, repoPaths []string, opts repomgr.UpdateOptions, useTUI bool) []runner.Job {
 	var outputMu sync.Mutex
+
+	nameCounts := make(map[string]int, len(repoPaths))
+	for _, path := range repoPaths {
+		displayName := buildRepoJobDisplayName(root, path)
+		nameCounts[displayName]++
+	}
 
 	execJobs := make([]runner.Job, 0, len(repoPaths))
 	for _, path := range repoPaths {
 		repoPath := path
-		repoName := filepath.Base(repoPath)
+
+		repoName := buildRepoJobDisplayName(root, repoPath)
+		if nameCounts[repoName] > 1 {
+			// 同名衝突時はフルパスで表示して一意性を担保する。
+			repoName = filepath.Clean(repoPath)
+		}
 
 		execJobs = append(execJobs, runner.Job{
 			Name: repoName,
@@ -230,6 +242,30 @@ func buildRepoUpdateJobs(repoPaths []string, opts repomgr.UpdateOptions, useTUI 
 	}
 
 	return execJobs
+}
+
+func buildRepoJobDisplayName(root, repoPath string) string {
+	cleanRepoPath := filepath.Clean(repoPath)
+
+	rel, err := filepath.Rel(root, cleanRepoPath)
+	if err != nil {
+		return filepath.Base(cleanRepoPath)
+	}
+
+	cleanRel := filepath.Clean(rel)
+	if cleanRel == "." {
+		return cleanRel
+	}
+
+	if cleanRel == ".." || strings.HasPrefix(cleanRel, ".."+string(filepath.Separator)) {
+		return filepath.Base(cleanRepoPath)
+	}
+
+	if cleanRel == "" {
+		return filepath.Base(cleanRepoPath)
+	}
+
+	return cleanRel
 }
 
 func printRepoTable(repos []repomgr.Info) error {

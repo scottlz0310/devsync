@@ -164,6 +164,103 @@ func TestProgressPercent(t *testing.T) {
 	}
 }
 
+func TestResolveJobIndex(t *testing.T) {
+	t.Parallel()
+
+	m := newModel("test", []runner.Job{
+		{Name: "dup"},
+		{Name: "dup"},
+		{Name: "uniq"},
+	})
+
+	testCases := []struct {
+		name     string
+		fallback int
+		jobName  string
+		want     int
+	}{
+		{
+			name:     "有効なJobIndexを優先",
+			fallback: 1,
+			jobName:  "dup",
+			want:     1,
+		},
+		{
+			name:     "無効なJobIndexなら名前で解決",
+			fallback: -1,
+			jobName:  "uniq",
+			want:     2,
+		},
+		{
+			name:     "重複名は先頭indexへフォールバック",
+			fallback: -1,
+			jobName:  "dup",
+			want:     0,
+		},
+		{
+			name:     "解決不能ならfallbackを返す",
+			fallback: 99,
+			jobName:  "missing",
+			want:     99,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := m.resolveJobIndex(tc.fallback, tc.jobName)
+			if got != tc.want {
+				t.Fatalf("resolveJobIndex(%d, %q) = %d, want %d", tc.fallback, tc.jobName, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAppendLog_Capped(t *testing.T) {
+	t.Parallel()
+
+	m := newModel("test", []runner.Job{{Name: "job-1"}})
+
+	total := maxBufferedLogs + 25
+	for i := 0; i < total; i++ {
+		m.appendLog(logInfo, "line")
+	}
+
+	if len(m.logs) != maxBufferedLogs {
+		t.Fatalf("log length = %d, want %d", len(m.logs), maxBufferedLogs)
+	}
+}
+
+func TestApplyEvent_WithDuplicateNamesUsesJobIndex(t *testing.T) {
+	t.Parallel()
+
+	m := newModel("test", []runner.Job{
+		{Name: "dup"},
+		{Name: "dup"},
+	})
+
+	event := runner.Event{
+		Type:      runner.EventFinished,
+		JobIndex:  1,
+		JobName:   "dup",
+		Status:    runner.StatusSuccess,
+		Duration:  100 * time.Millisecond,
+		Timestamp: time.Now(),
+	}
+
+	m.applyEvent(&event)
+
+	if m.jobs[0].State == jobSuccess {
+		t.Fatalf("jobs[0] should not be updated by duplicated name event")
+	}
+
+	if m.jobs[1].State != jobSuccess {
+		t.Fatalf("jobs[1].State = %s, want %s", m.jobs[1].State, jobSuccess)
+	}
+}
+
 func containsLog(logs []logEntry, needle string) bool {
 	for _, log := range logs {
 		if strings.Contains(log.Message, needle) {

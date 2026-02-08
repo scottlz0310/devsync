@@ -15,6 +15,7 @@ import (
 const (
 	defaultBarWidth = 18
 	maxLogLines     = 8
+	maxBufferedLogs = 200
 )
 
 type jobState string
@@ -121,7 +122,9 @@ func newModel(title string, jobs []runner.Job) *model {
 			Name:  name,
 			State: jobPending,
 		})
-		indexByJob[name] = index
+		if _, exists := indexByJob[name]; !exists {
+			indexByJob[name] = index
+		}
 	}
 
 	return &model{
@@ -259,9 +262,17 @@ func (m *model) appendLog(level logLevel, message string) {
 		Level:   level,
 		Message: message,
 	})
+
+	if len(m.logs) > maxBufferedLogs {
+		m.logs = m.logs[len(m.logs)-maxBufferedLogs:]
+	}
 }
 
 func (m *model) resolveJobIndex(fallback int, name string) int {
+	if fallback >= 0 && fallback < len(m.jobs) {
+		return fallback
+	}
+
 	if index, ok := m.indexByJob[name]; ok {
 		return index
 	}
