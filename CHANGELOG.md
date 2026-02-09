@@ -9,10 +9,13 @@
 ### Added
 
 - gitleaks によるシークレット混入チェックを追加（GitHub Actions / `task secrets`）
+- `config.yaml` に `ui.tui` を追加し、`--tui` なしでも進捗TUIを既定で有効化できるように改善
+- `sys update` / `repo update` に `--no-tui` を追加（設定より優先してTUIを無効化）
 
 ### Changed
 
 - `README.md` に Alpha の既知の制約、`setup-repo` 併用の推奨運用、復旧手順（`config init` 再実行 / `repo.root` 見直し）を追記
+- `docs/Implementation_Plan.md` を現状の実装進捗に合わせて更新
 - CLI バージョン番号を `v0.1.0-alpha` に設定し、`devsync --version` で確認可能に変更
 - PowerShell 連携スクリプトの `devsync-load-env` で `env export` の複数行出力を正しく連結して `Invoke-Expression` に渡すよう修正（`System.Object[]` 型エラーを解消）
 - PowerShell 連携スクリプトの `dev-sync` で `devsync-unlock` / `devsync-load-env` の成否判定を `$LASTEXITCODE` 依存から関数戻り値判定に変更し、失敗時に後続処理へ進まないよう修正
