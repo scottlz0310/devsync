@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -107,7 +108,7 @@ func validateRepo(result *ValidationResult, cfg *Config) {
 		return
 	}
 
-	if root == "~" || strings.HasPrefix(root, "~/") || strings.HasPrefix(root, `~\`) {
+	if strings.HasPrefix(root, "~") {
 		result.Errors = append(result.Errors, ValidationIssue{
 			Field:   "repo.root",
 			Message: fmt.Sprintf("チルダ（~）は自動展開されません: %q（フルパスで指定してください）", root),
@@ -135,7 +136,7 @@ func validateRepo(result *ValidationResult, cfg *Config) {
 	default:
 		result.Errors = append(result.Errors, ValidationIssue{
 			Field:   "repo.root",
-			Message: fmt.Sprintf("ディレクトリの確認に失敗しました: %s", cleaned),
+			Message: fmt.Sprintf("ディレクトリの確認に失敗しました: %s: %v", cleaned, err),
 		})
 	}
 
@@ -205,8 +206,8 @@ func validateSys(result *ValidationResult, cfg *Config, opts ValidateOptions) {
 		return
 	}
 
-	unknown := make([]string, 0, 2)
-	duplicates := make([]string, 0, 1)
+	unknownSet := make(map[string]struct{}, 2)
+	duplicateSet := make(map[string]struct{}, 1)
 	seen := make(map[string]struct{}, len(cfg.Sys.Enable))
 
 	for _, name := range cfg.Sys.Enable {
@@ -221,15 +222,21 @@ func validateSys(result *ValidationResult, cfg *Config, opts ValidateOptions) {
 		}
 
 		if _, ok := seen[trimmed]; ok {
-			duplicates = append(duplicates, trimmed)
+			duplicateSet[trimmed] = struct{}{}
 		} else {
 			seen[trimmed] = struct{}{}
 		}
 
 		if _, ok := opts.KnownSysManagers[trimmed]; !ok {
-			unknown = append(unknown, trimmed)
+			unknownSet[trimmed] = struct{}{}
 		}
 	}
+
+	duplicates := keysOfStringSet(duplicateSet)
+	sort.Strings(duplicates)
+
+	unknown := keysOfStringSet(unknownSet)
+	sort.Strings(unknown)
 
 	if len(duplicates) > 0 {
 		result.Warnings = append(result.Warnings, ValidationIssue{
@@ -244,4 +251,17 @@ func validateSys(result *ValidationResult, cfg *Config, opts ValidateOptions) {
 			Message: fmt.Sprintf("未知のマネージャが指定されています（typoの可能性があります）: %v", unknown),
 		})
 	}
+}
+
+func keysOfStringSet(set map[string]struct{}) []string {
+	if len(set) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(set))
+	for key := range set {
+		keys = append(keys, key)
+	}
+
+	return keys
 }

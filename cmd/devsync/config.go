@@ -148,21 +148,24 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 }
 
 func runConfigShow(cmd *cobra.Command, args []string) error {
-	exists, path, err := config.ConfigFileExists()
-	if err != nil {
-		return fmt.Errorf("設定ファイル状態の確認に失敗しました: %w", err)
-	}
-
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("設定ファイルの読み込みに失敗しました: %w", err)
 	}
 
+	exists, path, stateErr := config.ConfigFileExists()
+	if stateErr != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  設定ファイル状態の確認に失敗しました: %v\n", stateErr)
+	}
+
 	fmt.Printf("📋 設定ファイル: %s\n", path)
 
-	if exists {
+	switch {
+	case stateErr != nil:
+		fmt.Println("⚠️  設定ファイル状態は要確認です（設定値は表示します）")
+	case exists:
 		fmt.Println("✅ 設定ファイルを読み込みました")
-	} else {
+	default:
 		fmt.Println("⚪ 設定ファイルは未作成です（デフォルト値で表示します）")
 	}
 
@@ -181,21 +184,24 @@ func runConfigValidate(cmd *cobra.Command, args []string) error {
 	fmt.Println("🔍 設定の検証を開始します...")
 	fmt.Println()
 
-	exists, path, err := config.ConfigFileExists()
-	if err != nil {
-		return fmt.Errorf("設定ファイル状態の確認に失敗しました: %w", err)
-	}
-
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("設定ファイルの読み込みに失敗しました: %w", err)
 	}
 
+	exists, path, stateErr := config.ConfigFileExists()
+	if stateErr != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  設定ファイル状態の確認に失敗しました: %v\n", stateErr)
+	}
+
 	fmt.Printf("📋 設定ファイル: %s\n", path)
 
-	if exists {
+	switch {
+	case stateErr != nil:
+		fmt.Println("⚠️  設定ファイル状態は要確認です（設定値は検証します）")
+	case exists:
 		fmt.Println("✅ 設定ファイルを読み込みました")
-	} else {
+	default:
 		fmt.Println("⚪ 設定ファイルは未作成です（デフォルト値で検証します）")
 	}
 

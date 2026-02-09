@@ -142,6 +142,15 @@ func TestValidate(t *testing.T) {
 			wantErrorSubstrs: []string{"repo.root", "チルダ"},
 		},
 		{
+			name: "repo.rootが~user始まりはエラー",
+			cfg: func() *Config {
+				c := newValidConfig(existingDir)
+				c.Repo.Root = "~user/src"
+				return c
+			}(),
+			wantErrorSubstrs: []string{"repo.root", "チルダ"},
+		},
+		{
 			name: "repo.rootが存在しない場合はエラー",
 			cfg: func() *Config {
 				c := newValidConfig(existingDir)

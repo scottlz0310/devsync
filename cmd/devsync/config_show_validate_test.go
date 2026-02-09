@@ -24,16 +24,31 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	os.Stdout = writeEnd
 
+	var buf bytes.Buffer
+	copyDone := make(chan struct{})
+	var copyErr error
+
+	defer func() {
+		os.Stdout = original
+		_ = writeEnd.Close()
+		_ = readEnd.Close()
+	}()
+
+	go func() {
+		_, copyErr = io.Copy(&buf, readEnd)
+		close(copyDone)
+	}()
+
 	fn()
 
+	// EOF を通知して reader 側のコピーを完了させる。
 	if closeErr := writeEnd.Close(); closeErr != nil {
 		t.Fatalf("stdout writer close error: %v", closeErr)
 	}
 
-	os.Stdout = original
+	<-copyDone
 
-	var buf bytes.Buffer
-	if _, copyErr := io.Copy(&buf, readEnd); copyErr != nil {
+	if copyErr != nil {
 		t.Fatalf("failed to copy stdout: %v", copyErr)
 	}
 
