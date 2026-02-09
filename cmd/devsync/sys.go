@@ -106,18 +106,12 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if opts.DryRun {
-		fmt.Println("📋 DryRun モード: 実際の更新は行いません")
-		fmt.Println()
-	}
+	printSysUpdateDryRunNotice(opts.DryRun)
 
 	jobs := resolveSysJobs(cfg.Control.Concurrency, sysJobs)
 	exclusiveUpdaters, parallelUpdaters := splitUpdatersForExecution(enabledUpdaters)
 
-	if useTUI {
-		fmt.Println("🖥️  TUI 進捗表示を有効化しました")
-		fmt.Println()
-	}
+	printSysUpdateTUIEnabledNotice(useTUI)
 
 	var stats updateStats
 
@@ -163,6 +157,24 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 	fmt.Println("✅ システムパッケージの更新が完了しました")
 
 	return nil
+}
+
+func printSysUpdateDryRunNotice(dryRun bool) {
+	if !dryRun {
+		return
+	}
+
+	fmt.Println("📋 DryRun モード: 実際の更新は行いません")
+	fmt.Println()
+}
+
+func printSysUpdateTUIEnabledNotice(useTUI bool) {
+	if !useTUI {
+		return
+	}
+
+	fmt.Println("🖥️  TUI 進捗表示を有効化しました")
+	fmt.Println()
 }
 
 // updateStats は更新処理の統計情報を保持します。

@@ -42,7 +42,7 @@ func TestResolveTUIRequest(t *testing.T) {
 			want:          tuiRequest{Requested: false, Source: tuiSourceFlag},
 		},
 		{
-			name:         "--no-tui は無効化を強制",
+			name:          "--no-tui は無効化を強制",
 			configDefault: true,
 			noTUIChanged:  true,
 			noTUIValue:    true,
@@ -50,11 +50,11 @@ func TestResolveTUIRequest(t *testing.T) {
 		},
 		{
 			name:         "--tui と --no-tui の矛盾はエラー",
-			tuiChanged:    true,
-			tuiValue:      true,
-			noTUIChanged:  true,
-			noTUIValue:    true,
-			wantErr:       true,
+			tuiChanged:   true,
+			tuiValue:     true,
+			noTUIChanged: true,
+			noTUIValue:   true,
+			wantErr:      true,
 		},
 	}
 
