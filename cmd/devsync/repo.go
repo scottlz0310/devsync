@@ -29,6 +29,7 @@ var (
 	repoUpdateSubmodules  bool
 	repoUpdateNoSubmodule bool
 	repoUpdateTUI         bool
+	repoUpdateNoTUI       bool
 )
 
 var (
@@ -90,7 +91,8 @@ func init() {
 	repoUpdateCmd.Flags().BoolVarP(&repoUpdateDryRun, "dry-run", "n", false, "実際の更新は行わず、計画のみ表示")
 	repoUpdateCmd.Flags().BoolVar(&repoUpdateSubmodules, "submodule", false, "submodule update を有効化する（設定値を上書き）")
 	repoUpdateCmd.Flags().BoolVar(&repoUpdateNoSubmodule, "no-submodule", false, "submodule update を無効化する（設定値を上書き）")
-	repoUpdateCmd.Flags().BoolVar(&repoUpdateTUI, "tui", false, "Bubble Tea の進捗UIを表示")
+	repoUpdateCmd.Flags().BoolVar(&repoUpdateTUI, "tui", false, "Bubble Tea の進捗UIを表示（既定値は config.yaml の ui.tui）")
+	repoUpdateCmd.Flags().BoolVar(&repoUpdateNoTUI, "no-tui", false, "TUI 進捗表示を無効化（設定より優先）")
 }
 
 func runRepoList(cmd *cobra.Command, args []string) error {
@@ -164,6 +166,14 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	tuiReq, err := resolveTUIRequest(cfg.UI.TUI, cmd.Flags().Changed("tui"), repoUpdateTUI, cmd.Flags().Changed("no-tui"), repoUpdateNoTUI)
+	if err != nil {
+		return err
+	}
+
+	useTUI, warning := resolveTUIEnabled(tuiReq)
+	printTUIWarning(warning)
+
 	bootstrap, bootstrapErr := bootstrapReposFromGitHub(ctx, root, cfg, opts.DryRun)
 	if bootstrapErr != nil {
 		return fmt.Errorf("GitHub リポジトリの取得に失敗しました: %w", bootstrapErr)
@@ -171,13 +181,11 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 
 	repoPaths = mergeRepoPaths(repoPaths, bootstrap.ReadyPaths)
 	if len(repoPaths) == 0 {
-		printNoTargetResult(root, bootstrap, repoUpdateTUI)
+		printNoTargetResult(root, bootstrap, tuiReq)
 		return nil
 	}
 
 	jobs := resolveRepoJobs(cfg.Control.Concurrency, repoUpdateJobs)
-	useTUI, warning := resolveTUIEnabled(repoUpdateTUI)
-	printTUIWarning(warning)
 
 	if useTUI {
 		fmt.Println("🖥️  TUI 進捗表示を有効化しました")
@@ -431,8 +439,8 @@ func resolveRepoSubmoduleUpdate(configValue, enableOverride, disableOverride boo
 	return configValue, nil
 }
 
-func printNoTargetResult(root string, bootstrap bootstrapResult, tuiEnabled bool) {
-	printNoTargetTUIMessage(tuiEnabled, "repo update")
+func printNoTargetResult(root string, bootstrap bootstrapResult, tuiReq tuiRequest) {
+	printNoTargetTUIMessage(tuiReq, "repo update")
 
 	if bootstrap.PlannedOnly > 0 {
 		fmt.Printf("📝 DryRun のため clone 計画のみ表示しました（%d件）\n", bootstrap.PlannedOnly)

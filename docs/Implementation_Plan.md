@@ -1,185 +1,129 @@
-以下に、「一押し構成（Go中心 + 安定並列 + インタラクティブ設定）」での **実装計画書（Roadmap）** を提示します。
-“毎日使う道具”として運用を崩さずに育てられるよう、**価値の出る順に段階導入**する計画にしています。
-
----
-
 # 実装計画書（Roadmap）
 
-対象：既存ツール（sysup / Setup-Repository）の統合 + Bitwarden 環境変数注入の自動化を含むクロスプラットフォーム CLI
+対象：既存ツール（sysup / Setup-Repository）の統合 + Bitwarden 環境変数注入を含むクロスプラットフォーム CLI
 
 ## 1. 目的とゴール
 
 ### 目的
 
-* **開発環境運用の統合と一本化**:
-  * 既存のシステム更新ツール [sysup](https://github.com/scottlz0310/sysup)
-  * リポジトリ管理ツール [Setup-Repository](https://github.com/scottlz0310/Setup-Repository)
-  * `bw-cli` (Bitwarden CLI) を用いた環境変数注入の自動化
-  
-  上記3つの機能を統合し、単一のCLIツールとして運用・保守・拡張の中心に据える。
-
-* **学習体験と技術スタックの刷新**:
-  * これまで主力であったPythonによるCLI開発から離れ、**Go**（またはRust）などの静的型付けコンパイル言語を採用する。
-  * これにより、配布性・並列処理の安定性を向上させるとともに、新しい言語パラダイムごとの設計・実装パターンを習得する「学習の場」としても活用する。
-
-* **運用体験の向上**:
-  * ネットワークアクセスを伴う処理の **安定した並列実行**（高速化と失敗率の低減）。
-  * 設定体験を「GUI感覚（ウィザード形式）」に近づけ、継続利用の摩擦を下げる。
-
-* **ハイブリッド運用の実現 (New)**:
-  * ローカルPC（Host）では「母艦のメンテナンス」、Codespaces（Container）では「個人環境の即時セットアップ（Personalization）」と、実行環境に応じて振る舞いを最適化する。
+- **開発環境運用の統合と一本化**: `sysup` / `Setup-Repository` 相当の機能を単一の CLI に統合する
+- **学習体験と技術スタックの刷新**: Python から Go へ移行し、配布性と並列実行の安定性を高める
+- **運用体験の向上**: 「毎日使う」ことを前提に、設定ウィザード・並列実行・進捗表示を整備する
 
 ### v0.1 ゴール（MVP）
 
-* 単一バイナリで動作するGo CLIが提供され、最低限の日次運用が置き換え可能
-* 既存ツール（sysup/Setup-Repository）の機能が移植され、統合コマンドから呼び出せる
-* 安定並列（上限・timeout・cancel・集計）が確立し、更新処理が破綻しない
-* `config init`（ウィザード）で設定ファイルを作成できる
-* `repo update` / `sys update` がそれぞれ動く
-* `doctor` で依存コマンド（bwコマンド含む）や基本疎通を確認できる
-* `Host` / `Container` モードを判別し、`sys update` 等の挙動を切り替える (New)
+- [x] 単一バイナリで動作する Go CLI が提供され、日次運用の中核フローが置き換え可能
+- [x] `config init`（ウィザード）で設定ファイルを作成できる
+- [x] `sys update` / `repo update` が動作する
+- [x] 安定並列（上限・timeout・cancel・集計）が確立し、更新処理が破綻しない
+- [x] `doctor` で依存コマンドや基本疎通を確認できる
+- [x] TUI（Bubble Tea）で並列実行の進捗を表示できる
 
----
+## 2. 現状（2026-02-09 時点）
 
-## 2. 推奨技術スタック（v0.1）
+- `devsync run`（Bitwarden解錠 → env注入 → `sys update` → `repo update`）まで到達
+- `repo update` は並列実行 + サブモジュール更新に対応
+- `sys update` は主要マネージャを実装済み（apt/brew/go/npm/snap/pipx/cargo）
+- 進捗UIは `--tui` で起動（設定 `ui.tui` で既定ON/OFFも可能）
 
-* 言語：Go
-* CLIフレームワーク：Cobra
-* 設定：YAML（人間が読み書きしやすい）＋構造体バインド
+## 3. CLI コマンド設計（v0.1 時点）
 
-  * 読み書き：Viper（採用決定）
-* インタラクティブ設定（初期）：survey（initウィザード）
-* インタラクティブ設定（次段）：Bubble Tea（TUI編集画面）
-* 並列制御：errgroup + semaphore（もしくはワーカープール）
-* HTTP：net/http（Transport明示）＋ Context
-* ログ：標準log/slog
-* テスト：標準testing + testify
-* リリース：GoReleaser（Windows/Linux向けバイナリを生成）
+- 日次統合: `devsync run`
+- 診断: `devsync doctor`
+- システム更新: `devsync sys update`, `devsync sys list`
+- リポジトリ管理: `devsync repo update`, `devsync repo list`
+- 環境変数: `devsync env export`, `devsync env run`
+- 設定: `devsync config init`, `devsync config uninstall`
 
----
+予定機能（未実装）:
 
-## 3. CLIのコマンド設計（v0.1）
+- `devsync repo cleanup`（マージ済みブランチ削除）
+- `devsync config show` / `devsync config validate`
 
-### 基本コマンド
-
-* `devsync tool update`
-
-  * 内部で repo/sys の双方（または設定に応じて片方）を実行
-  * `--jobs N`（並列数）
-  * `--timeout 5m`（全体タイムアウト）
-  * `--dry-run`（計画のみ）
-  * `--yes`（確認なし）
-  * `--fail-fast`（任意、デフォルトは集計）
-  * `--mode [host|container]` (強制指定オプション) (New)
-
-### Repo系
-
-* `devsync repo update`（リポジトリの pull / submodule update 等）
-* `devsync repo list`（対象一覧表示）
-
-### System系
-
-* `devsync sys update`
-  * **Host Mode**: OSパッケージマネージャ(`winget`, `brew`, `apt`)によるシステム・アプリ更新
-  * **Container Mode**: ユーザー固有ツール(`fzf`, `starship`等)やdotfilesのインストール・設定同期 (New)
-
-### 設定系
-
-* `devsync config init`（survey：カーソル選択→確定のウィザード）
-* `devsync config show`（現在の設定表示）
-* `devsync config validate`（スキーマ + 実行環境チェック）
-
-### 診断系
-
-* `devsync doctor`（validate + 依存コマンド検出 + 疎通テスト）
-
----
-
-## 4. 設定スキーマ（YAML案）
+## 4. 設定スキーマ（config.yaml）
 
 ```yaml
 version: 1
 
-concurrency:
-  jobs: 6
-  timeout: "5m"
-  per_request_timeout: "20s"
+control:
+  concurrency: 8
+  timeout: "10m"
+  dry_run: false
+
+ui:
+  tui: false  # true の場合、--tui なしでも進捗UIを既定で有効化
 
 repo:
-  enabled: true
-  roots:
-    - path: "~/src"
-      include:
-        - "repoA"
-        - "repoB"
-      exclude:
-        - "legacy-repo"
-  actions:
-    git_pull: true
+  root: "~/src"
+  github:
+    owner: ""        # 設定時は GitHub の一覧との差分を補完（不足分は clone 導線）
+    protocol: "https" # https | ssh
+  sync:
+    auto_stash: true
+    prune: true
     submodule_update: true
+  cleanup:
+    enabled: true
+    target: ["merged", "squashed"]
+    exclude_branches: ["main", "master", "develop"]
 
 sys:
-  enabled: true
+  enable: [] # 例: ["apt", "go"]
   managers:
-    - kind: "brew"      # macが増えた場合に拡張
-    - kind: "apt"
-    - kind: "winget"
-  options:
-    upgrade: true
-    cleanup: false
-  
-  # コンテナ内でセットアップしたい個人ツール (New)
-  personalization:
-    packages:
-      - "fzf"
-      - "ripgrep"
-    dotfiles: "https://github.com/user/dotfiles.git"
+    apt:
+      use_sudo: true
 
 secrets:
   enabled: true
   provider: "bitwarden"
-  # コマンド実行前にロック解除を行い、環境変数に注入する
-  env:
-    # 環境変数名: "BitwardenアイテムID" (または検索クエリ)
-    GITHUB_TOKEN: "github-access-token-item-id"
-    NPM_TOKEN: "npm-auth-token-id"
 ```
 
----
+補足:
 
-## 7. 実装ステップ（マイルストーン）
+- `ui.tui=true` の場合でも、非TTY（リダイレクト/CI等）では自動的に通常表示へフォールバックします。
+- コマンド単位で上書きしたい場合は `--tui` / `--no-tui` を使用します。
 
-### Phase 1：プロジェクト骨格とCLI基盤 (完了)
+## 5. 実装ステップ（マイルストーン）
 
-* [x] プロジェクト構成作成 (cmd, internal, etc)
-* [x] Go モジュール初期化
-* [x] Cobra 導入・ルートコマンド作成
-* [x] `doctor` コマンドスケルトン作成
-* [x] ドキュメント整理 (README, AGENTS, Docs)
+### Phase 1：プロジェクト骨格とCLI基盤（完了）
 
-### Phase 2：設定管理の実装 (Next)
+- [x] Go モジュール初期化 / Cobra 導入
+- [x] ルートコマンド / `doctor` スケルトン
+- [x] ドキュメント整備（README/AGENTS/Docs）
 
-* [ ] `viper` 導入と設定ファイルの定義
-* [ ] 環境認識ロジックの実装 (`Host` vs `Container`) (New)
-* [ ] `config init` コマンド実装 (survey 使用)
-* [ ] 設定ファイルの読み込み・検証ロジック
+### Phase 2：設定管理（完了）
 
-### Phase 3：実行エンジン（並列・集計）の確立
+- [x] `internal/config`（Viper）で設定の読み込み/保存
+- [x] `config init`（survey）で対話生成（既存設定の再編集対応を含む）
+- [x] 環境認識（Host/Container 判定、推奨マネージャ提案）
 
-* [ ] Job インターフェース定義
-* [ ] worker pool / semaphore 実装
-* [ ] Context cancel / Timeout 管理
+### Phase 3：Secrets（完了）
 
-### Phase 4：主要機能の実装 (Repo / Sys)
+- [x] Bitwarden 連携（unlock / env 読み込み / env run）
+- [x] 実行前ミドルウェア（必要時に解錠・環境変数注入）
 
-* [ ] `sys update` 実装 (コマンド実行ラッパー)
-* [ ] `repo update` 実装 (`git` コマンドラッパー)
-* [ ] `tool update` (統合コマンド) 実装
+### Phase 4：並列実行エンジン（完了）
 
-### Phase 5：配布準備
+- [x] `internal/runner`（errgroup + semaphore）
+- [x] timeout/cancel/集計
 
-* [ ] GoReleaser 設定
-* [ ] バイナリビルド確認
-* [ ] リリース
+### Phase 5：システム更新・リポジトリ管理（完了）
 
----
+- [x] `sys update` / `sys list`
+- [x] `repo update` / `repo list`
+- [x] 並列実行への統合
+
+### Phase 6：TUI 進捗表示（完了）
+
+- [x] Bubble Tea によるマルチ進捗表示 + リアルタイムログ
+- [x] `sys update` / `repo update` への統合
+
+### Phase 7：運用安全性・完成度の強化（次の優先）
+
+- [ ] `repo sync` の安全運用を段階的に強化（危険状態はスキップして理由を表示）
+- [ ] 判定ロジックを table-driven tests で固定（境界値・失敗系を優先）
+- [ ] `config show` / `config validate` の追加
+- [ ] テスト拡充（`internal/config` / `internal/secret` / `internal/updater`）
+- [ ] `repo cleanup` の移植
+- [ ] `sys` マネージャ拡張（flatpak/fwupdmgr/pnpm/nvm/uv/rustup/gem/winget/scoop 等）
+- [ ] リリース/CI（GoReleaser/GitHub Actions/E2E）

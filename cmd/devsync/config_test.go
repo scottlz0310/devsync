@@ -358,6 +358,7 @@ func TestBuildConfigInitDefaults(t *testing.T) {
 				RepoRoot:        filepath.FromSlash("/home/dev/src"),
 				GitHubOwner:     "auto-user",
 				Concurrency:     8,
+				EnableTUI:       false,
 				EnabledManagers: []string{"apt", "snap"},
 			},
 		},
@@ -368,6 +369,9 @@ func TestBuildConfigInitDefaults(t *testing.T) {
 			existingCfg: &config.Config{
 				Control: config.ControlConfig{
 					Concurrency: 16,
+				},
+				UI: config.UIConfig{
+					TUI: true,
 				},
 				Repo: config.RepoConfig{
 					Root: "/work/repos",
@@ -384,6 +388,7 @@ func TestBuildConfigInitDefaults(t *testing.T) {
 				RepoRoot:        "/work/repos",
 				GitHubOwner:     "my-org",
 				Concurrency:     16,
+				EnableTUI:       true,
 				EnabledManagers: []string{"apt", "npm"},
 			},
 		},
@@ -407,6 +412,7 @@ func TestBuildConfigInitDefaults(t *testing.T) {
 				RepoRoot:        "/repos",
 				GitHubOwner:     "auto-user",
 				Concurrency:     8,
+				EnableTUI:       false,
 				EnabledManagers: []string{"brew"},
 			},
 		},
@@ -424,6 +430,7 @@ func TestBuildConfigInitDefaults(t *testing.T) {
 				RepoRoot:        filepath.FromSlash("/home/dev/src"),
 				GitHubOwner:     "",
 				Concurrency:     8,
+				EnableTUI:       false,
 				EnabledManagers: promptOptions,
 			},
 		},
@@ -446,6 +453,10 @@ func TestBuildConfigInitDefaults(t *testing.T) {
 
 			if got.Concurrency != tc.want.Concurrency {
 				t.Fatalf("Concurrency = %d, want %d", got.Concurrency, tc.want.Concurrency)
+			}
+
+			if got.EnableTUI != tc.want.EnableTUI {
+				t.Fatalf("EnableTUI = %v, want %v", got.EnableTUI, tc.want.EnableTUI)
 			}
 
 			if !reflect.DeepEqual(got.EnabledManagers, tc.want.EnabledManagers) {

@@ -4,9 +4,17 @@ package config
 type Config struct {
 	Version int           `mapstructure:"version" yaml:"version"`
 	Control ControlConfig `mapstructure:"control" yaml:"control"`
+	UI      UIConfig      `mapstructure:"ui" yaml:"ui"`
 	Repo    RepoConfig    `mapstructure:"repo" yaml:"repo"`
 	Sys     SysConfig     `mapstructure:"sys" yaml:"sys"`
 	Secrets SecretsConfig `mapstructure:"secrets" yaml:"secrets"`
+}
+
+// UIConfig はUI表示に関する設定です。
+type UIConfig struct {
+	// TUI は Bubble Tea の進捗UIを既定で有効化します。
+	// 実行環境が対話端末でない場合は自動的に通常表示へフォールバックします。
+	TUI bool `mapstructure:"tui" yaml:"tui"`
 }
 
 // SecretsConfig はシークレット管理に関する設定です。

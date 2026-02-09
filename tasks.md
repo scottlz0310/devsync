@@ -103,6 +103,8 @@
 - [x] GitHub Actions CI に Windows ランナーでのテスト実行を追加（`go test ./...`）
 - [x] `repo update` のレビュー指摘対応（DryRun計画整合 / `.git` 判定厳格化 / submoduleフラグ整理）
 - [x] 初回運用導線の改善（`config init` 誘導 / `doctor` 設定表示の明確化 / エラー重複解消 / `sys list` 有効列の明示 / `--tui` 対象0件メッセージ）
+- [x] `docs/Implementation_Plan.md` の進捗チェックを現状に合わせて更新
+- [x] TUI の既定有効化設定を追加（`ui.tui` / `--no-tui`）
 - [x] `sys.enable` に未インストールのマネージャが含まれる場合の警告スキップ動作を整備（処理継続）
 - [x] `config init` で `repo.root` 未存在時の作成確認導線を追加（拒否時は終了）
 - [x] `sys update` 実行前の sudo 事前認証（単独フェーズ前/並列フェーズ前）を追加し、`use_sudo`/`sudo` の互換設定を整備

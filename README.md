@@ -98,6 +98,7 @@ devsync sys update    # パッケージマネージャで一括更新
 devsync sys update -n # ドライラン（計画のみ表示）
 devsync sys update -j 4 # 4並列で更新
 devsync sys update --tui # Bubble Teaで進捗を表示
+devsync sys update --no-tui # TUIを無効化（設定より優先）
 devsync sys list      # 利用可能なパッケージマネージャを一覧表示
 ```
 
@@ -105,7 +106,8 @@ devsync sys list      # 利用可能なパッケージマネージャを一覧�
 
 `sys update` は `--jobs / -j` で並列数を指定できます（未指定時は `config.yaml` の `control.concurrency` を使用）。
 `apt` はパッケージロック競合を避けるため、依存関係ルールとして単独実行されます。
-`--tui` を指定すると、Bubble Tea ベースの進捗UI（マルチ進捗バー・リアルタイムログ・失敗ハイライト）を表示します。
+`ui.tui=true` を設定すると、`--tui` なしでも Bubble Tea ベースの進捗UI（マルチ進捗バー・リアルタイムログ・失敗ハイライト）を既定で有効化できます。
+コマンド単位で上書きしたい場合は `--tui` / `--no-tui` を使用します。
 `apt` / `snap` など sudo が必要な更新は、単独フェーズ・並列フェーズの開始前に `sudo -v` で事前認証を確認します。
 `snapd unavailable` の環境では `snap` を利用不可として自動スキップします。
 `sys.enable` に未インストールのマネージャが含まれている場合は、警告を表示してスキップし、利用可能なマネージャのみ継続実行します。
@@ -116,6 +118,7 @@ devsync repo update       # 管理下リポジトリを更新（fetch + pull --r
 devsync repo update -j 4  # 4並列で更新
 devsync repo update -n    # ドライラン（計画のみ表示）
 devsync repo update --tui # Bubble Teaで進捗を表示
+devsync repo update --no-tui # TUIを無効化（設定より優先）
 devsync repo update --submodule      # submodule更新を強制有効化（設定値を上書き）
 devsync repo update --no-submodule   # submodule更新を強制無効化（設定値を上書き）
 devsync repo list         # 管理下リポジトリの一覧と状態を表示
@@ -129,7 +132,8 @@ devsync repo list --root ~/src # ルートを上書きして一覧表示
 `repo.root` 配下で不足しているリポジトリを `git clone` してから更新を継続します（`-n/--dry-run` 時は clone 計画のみ表示）。
 submodule 更新の既定値は `config.yaml` の `repo.sync.submodule_update` で制御し、
 CLI では `--submodule` / `--no-submodule` で明示的に上書きできます。
-`--tui` 指定時は、更新の進捗・ログ・失敗状態をインタラクティブに表示します。
+`ui.tui=true` の場合は `--tui` なしでも、更新の進捗・ログ・失敗状態をインタラクティブに表示します。
+コマンド単位で上書きしたい場合は `--tui` / `--no-tui` を使用します。
 
 ### 環境変数 (`env`)
 ```
@@ -189,7 +193,7 @@ devsync sys update -n --tui
 devsync repo update -n --tui
 ```
 
-非TTY環境（CIやリダイレクト実行）では、`--tui` は通常表示へ自動フォールバックします。
+非TTY環境（CIやリダイレクト実行）では、`--tui` / `ui.tui=true` による TUI 指定は通常表示へ自動フォールバックします。
 
 ### 3. `run` の環境変数注入セクション確認
 
