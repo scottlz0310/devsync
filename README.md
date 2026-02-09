@@ -225,6 +225,20 @@ devsync repo update --tui -j 4
 - スキップ理由が想定どおりか（キャンセル/タイムアウトなど）
 - 必要に応じて `--verbose` で詳細ログを再確認
 
+### 6. `setup-repo` との比較（移行期間の手動チェック）
+
+`repo` 系は安全側優先のため、状態によっては `devsync repo update` がスキップすることがあります。
+移行期間中は `setup-repo` でも同期を実行し、結果の差分がないことを確認してください。
+
+- 実行順（例）:
+  - `devsync repo update --tui -j 4`
+  - `setup-repo sync`
+- 確認観点:
+  - スキップが出た場合、理由に応じた復旧ができること（例: デフォルトブランチへ戻す / stash を解消する / `git remote set-head <remote> -a` を実行する）
+  - `devsync repo list` のステータスが想定どおりであること
+  - `git status` が想定どおりであること
+  - サブモジュールを利用している場合、`git submodule status` が想定どおりであること
+
 ## 🧯 トラブル時の復旧手順
 
 問題が出た場合は、まず次の順で復旧してください。
