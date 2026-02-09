@@ -14,6 +14,7 @@ import (
 	"testing"
 	"unicode/utf16"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/scottlz0310/devsync/internal/config"
 	"github.com/scottlz0310/devsync/internal/testutil"
 )
@@ -844,5 +845,370 @@ func TestBuildReloadCommand(t *testing.T) {
 				t.Fatalf("buildReloadCommand(%q, %q) = %q, want %q", tc.shell, tc.rcFilePath, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestResolveInitScript(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+
+	testCases := []struct {
+		name         string
+		shell        string
+		wantFilename string
+		wantContains string
+	}{
+		{
+			name:         "powershell は init.ps1 を生成する",
+			shell:        shellPowerShell,
+			wantFilename: "init.ps1",
+			wantContains: "shell integration for PowerShell",
+		},
+		{
+			name:         "pwsh は init.ps1 を生成する",
+			shell:        "pwsh",
+			wantFilename: "init.ps1",
+			wantContains: "shell integration for PowerShell",
+		},
+		{
+			name:         "zsh は init.zsh を生成する",
+			shell:        shellZsh,
+			wantFilename: "init.zsh",
+			wantContains: "shell integration for zsh",
+		},
+		{
+			name:         "bash は init.bash を生成する",
+			shell:        shellBash,
+			wantFilename: "init.bash",
+			wantContains: "shell integration for bash",
+		},
+		{
+			name:         "未対応シェルは init.sh を生成する（中身は bash スクリプト）",
+			shell:        "sh",
+			wantFilename: "init.sh",
+			wantContains: "shell integration for bash",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotPath, gotContent := resolveInitScript(tc.shell, configDir, "/tmp/devsync")
+			if filepath.Base(gotPath) != tc.wantFilename {
+				t.Fatalf("filename = %q, want %q", filepath.Base(gotPath), tc.wantFilename)
+			}
+
+			if !strings.Contains(gotContent, tc.wantContains) {
+				t.Fatalf("content does not contain %q", tc.wantContains)
+			}
+		})
+	}
+}
+
+func TestResolveShellRcFile_Posix(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	scriptPath := filepath.Join(home, ".config", "devsync", "init.bash")
+
+	testCases := []struct {
+		name            string
+		shell           string
+		wantRcFilePath  string
+		wantSource      string
+		wantSupported   bool
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name:           "bash は .bashrc を返す",
+			shell:          shellBash,
+			wantRcFilePath: filepath.Join(home, ".bashrc"),
+			wantSource:     "source " + quoteForPosixShell(scriptPath),
+			wantSupported:  true,
+		},
+		{
+			name:           "zsh は .zshrc を返す",
+			shell:          shellZsh,
+			wantRcFilePath: filepath.Join(home, ".zshrc"),
+			wantSource:     "source " + quoteForPosixShell(scriptPath),
+			wantSupported:  true,
+		},
+		{
+			name:          "未対応シェルは supported=false",
+			shell:         "fish",
+			wantSupported: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotRc, gotSource, gotSupported, err := resolveShellRcFile(tc.shell, home, scriptPath)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr=%v", err, tc.wantErr)
+			}
+
+			if tc.wantErrContains != "" && err != nil && !strings.Contains(err.Error(), tc.wantErrContains) {
+				t.Fatalf("err = %q does not contain %q", err.Error(), tc.wantErrContains)
+			}
+
+			if gotSupported != tc.wantSupported {
+				t.Fatalf("supported = %v, want %v", gotSupported, tc.wantSupported)
+			}
+
+			if gotRc != tc.wantRcFilePath {
+				t.Fatalf("rcFilePath = %q, want %q", gotRc, tc.wantRcFilePath)
+			}
+
+			if gotSource != tc.wantSource {
+				t.Fatalf("sourceCommand = %q, want %q", gotSource, tc.wantSource)
+			}
+		})
+	}
+}
+
+func TestResolveShellRcFile_PowerShell(t *testing.T) {
+	original := getPowerShellProfilePathStep
+	t.Cleanup(func() {
+		getPowerShellProfilePathStep = original
+	})
+
+	scriptPath := `C:\Users\jojob\.config\devsync\init.ps1`
+	wantProfile := `C:\Users\jojob\OneDrive\ドキュメント\PowerShell\Microsoft.PowerShell_profile.ps1`
+
+	t.Run("取得成功ならプロファイルパスと dot source コマンドを返す", func(t *testing.T) {
+		getPowerShellProfilePathStep = func(string) (string, error) {
+			return wantProfile, nil
+		}
+
+		gotRc, gotSource, gotSupported, err := resolveShellRcFile(shellPowerShell, "ignored", scriptPath)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !gotSupported {
+			t.Fatalf("supported = false, want true")
+		}
+
+		if gotRc != wantProfile {
+			t.Fatalf("rcFilePath = %q, want %q", gotRc, wantProfile)
+		}
+
+		wantSource := ". " + quoteForPowerShell(scriptPath)
+		if gotSource != wantSource {
+			t.Fatalf("sourceCommand = %q, want %q", gotSource, wantSource)
+		}
+	})
+
+	t.Run("取得失敗なら err を返す", func(t *testing.T) {
+		getPowerShellProfilePathStep = func(string) (string, error) {
+			return "", errors.New("lookup failed")
+		}
+
+		_, _, gotSupported, err := resolveShellRcFile(shellPowerShell, "ignored", scriptPath)
+		if err == nil {
+			t.Fatalf("error = nil, want error")
+		}
+
+		if !gotSupported {
+			t.Fatalf("supported = false, want true")
+		}
+	})
+}
+
+func TestConfirmAddToRc(t *testing.T) {
+	original := surveyAskOneStep
+	t.Cleanup(func() {
+		surveyAskOneStep = original
+	})
+
+	t.Run("AskOne が true を設定した場合は true を返す", func(t *testing.T) {
+		surveyAskOneStep = func(prompt survey.Prompt, response interface{}, _ ...survey.AskOpt) error {
+			v, ok := response.(*bool)
+			if !ok {
+				return errors.New("response must be *bool")
+			}
+
+			*v = true
+
+			return nil
+		}
+
+		got, err := confirmAddToRc("/tmp/.bashrc")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !got {
+			t.Fatalf("got=false, want true")
+		}
+	})
+
+	t.Run("AskOne がエラーならエラーを返す", func(t *testing.T) {
+		surveyAskOneStep = func(prompt survey.Prompt, response interface{}, _ ...survey.AskOpt) error {
+			return errors.New("ask failed")
+		}
+
+		_, err := confirmAddToRc("/tmp/.bashrc")
+		if err == nil {
+			t.Fatalf("error = nil, want error")
+		}
+	})
+}
+
+func createConfigDir(t *testing.T, home string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Join(home, ".config", "devsync"), 0o755); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+}
+
+func TestGenerateShellInit_UnsupportedShell(t *testing.T) {
+	t.Setenv("PSModulePath", "")
+	t.Setenv("SHELL", "")
+
+	home := t.TempDir()
+
+	createConfigDir(t, home)
+
+	if err := generateShellInit(home); err != nil {
+		t.Fatalf("generateShellInit() unexpected error: %v", err)
+	}
+
+	scriptPath := filepath.Join(home, ".config", "devsync", "init.sh")
+	if _, statErr := os.Stat(scriptPath); statErr != nil {
+		t.Fatalf("init script should exist, statErr=%v", statErr)
+	}
+
+	rcFilePath := filepath.Join(home, ".bashrc")
+	if _, statErr := os.Stat(rcFilePath); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("rc file should not be created, statErr=%v", statErr)
+	}
+}
+
+func TestGenerateShellInit_Bash_Declined(t *testing.T) {
+	original := surveyAskOneStep
+	t.Cleanup(func() {
+		surveyAskOneStep = original
+	})
+
+	t.Setenv("PSModulePath", "")
+	t.Setenv("SHELL", "/bin/bash")
+
+	surveyAskOneStep = func(prompt survey.Prompt, response interface{}, _ ...survey.AskOpt) error {
+		v, ok := response.(*bool)
+		if !ok {
+			return errors.New("response must be *bool")
+		}
+
+		*v = false
+
+		return nil
+	}
+
+	home := t.TempDir()
+
+	createConfigDir(t, home)
+
+	if err := generateShellInit(home); err != nil {
+		t.Fatalf("generateShellInit() unexpected error: %v", err)
+	}
+
+	scriptPath := filepath.Join(home, ".config", "devsync", "init.bash")
+	if _, statErr := os.Stat(scriptPath); statErr != nil {
+		t.Fatalf("init script should exist, statErr=%v", statErr)
+	}
+
+	rcFilePath := filepath.Join(home, ".bashrc")
+	if _, statErr := os.Stat(rcFilePath); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("rc file should not be created, statErr=%v", statErr)
+	}
+}
+
+func TestGenerateShellInit_Bash_Accepted(t *testing.T) {
+	original := surveyAskOneStep
+	t.Cleanup(func() {
+		surveyAskOneStep = original
+	})
+
+	t.Setenv("PSModulePath", "")
+	t.Setenv("SHELL", "/bin/bash")
+
+	surveyAskOneStep = func(prompt survey.Prompt, response interface{}, _ ...survey.AskOpt) error {
+		v, ok := response.(*bool)
+		if !ok {
+			return errors.New("response must be *bool")
+		}
+
+		*v = true
+
+		return nil
+	}
+
+	home := t.TempDir()
+
+	createConfigDir(t, home)
+
+	if err := generateShellInit(home); err != nil {
+		t.Fatalf("generateShellInit() unexpected error: %v", err)
+	}
+
+	scriptPath := filepath.Join(home, ".config", "devsync", "init.bash")
+	if _, statErr := os.Stat(scriptPath); statErr != nil {
+		t.Fatalf("init script should exist, statErr=%v", statErr)
+	}
+
+	rcFilePath := filepath.Join(home, ".bashrc")
+
+	content, readErr := os.ReadFile(rcFilePath)
+	if readErr != nil {
+		t.Fatalf("rc file should exist, readErr=%v", readErr)
+	}
+
+	contentStr := string(content)
+	if !strings.Contains(contentStr, "# >>> devsync >>>") {
+		t.Fatalf("rc file does not contain marker begin: %q", contentStr)
+	}
+
+	if !strings.Contains(contentStr, "# <<< devsync <<<") {
+		t.Fatalf("rc file does not contain marker end: %q", contentStr)
+	}
+
+	if !strings.Contains(contentStr, scriptPath) {
+		t.Fatalf("rc file does not contain script path: %q", contentStr)
+	}
+}
+
+func TestGenerateShellInit_PowerShell_ProfileLookupFailed(t *testing.T) {
+	original := getPowerShellProfilePathStep
+	t.Cleanup(func() {
+		getPowerShellProfilePathStep = original
+	})
+
+	t.Setenv("PSModulePath", "dummy")
+	t.Setenv("SHELL", "")
+
+	getPowerShellProfilePathStep = func(string) (string, error) {
+		return "", errors.New("lookup failed")
+	}
+
+	home := t.TempDir()
+
+	createConfigDir(t, home)
+
+	if err := generateShellInit(home); err != nil {
+		t.Fatalf("generateShellInit() unexpected error: %v", err)
+	}
+
+	scriptPath := filepath.Join(home, ".config", "devsync", "init.ps1")
+	if _, statErr := os.Stat(scriptPath); statErr != nil {
+		t.Fatalf("init script should exist, statErr=%v", statErr)
 	}
 }

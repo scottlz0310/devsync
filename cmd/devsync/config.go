@@ -33,6 +33,12 @@ var errConfigInitCanceled = errors.New("config init canceled")
 
 var availableSystemManagers = []string{"apt", "brew", "go", "npm", "snap", "pipx", "cargo"}
 
+// テストで対話入力や外部依存を差し替えるためのフック
+var (
+	surveyAskOneStep             = survey.AskOne
+	getPowerShellProfilePathStep = getPowerShellProfilePath
+)
+
 type configInitDefaults struct {
 	RepoRoot        string
 	GitHubOwner     string
@@ -596,7 +602,7 @@ func resolveInitScript(shell, configDir, exePath string) (scriptPath, scriptCont
 func resolveShellRcFile(shell, home, scriptPath string) (rcFilePath, sourceCommand string, supported bool, err error) {
 	switch shell {
 	case shellPowerShell, "pwsh":
-		profilePath, err := getPowerShellProfilePath(shell)
+		profilePath, err := getPowerShellProfilePathStep(shell)
 		if err != nil {
 			return "", "", true, err
 		}
@@ -621,7 +627,7 @@ func confirmAddToRc(rcFilePath string) (bool, error) {
 		Default: true,
 	}
 
-	if err := survey.AskOne(prompt, &addToRc); err != nil {
+	if err := surveyAskOneStep(prompt, &addToRc); err != nil {
 		return false, err
 	}
 
