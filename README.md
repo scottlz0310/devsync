@@ -314,6 +314,21 @@ task clean       # ビルド成果物を削除
 task tidy        # go mod tidy
 ```
 
+### Windows で `task lint` が gofmt で落ちる場合
+
+Windows で Git の `core.autocrlf=true` を使っていると、`.go` ファイルが CRLF でチェックアウトされることがあり、
+`task lint`（gofmt チェック）が差分扱いになって失敗します。
+
+このリポジトリは `.gitattributes` で Go 関連ファイルを LF に固定していますが、**既存のクローン**は一度再チェックアウトが必要な場合があります。
+
+作業ツリーがクリーンな状態で、以下を実行してください：
+
+```powershell
+git status --porcelain
+git checkout -f -- .
+task lint
+```
+
 ### 品質基準
 
 - **カバレッジ閾値**: 30%（段階的に引き上げ予定）
