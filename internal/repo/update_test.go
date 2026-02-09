@@ -178,22 +178,22 @@ func TestUpdateSkipsOnUnsafeRepoState(t *testing.T) {
 		{
 			name:               "tracked の未コミット変更がある場合はスキップ",
 			setupRepo:          createRepoWithUpstreamAndDirtyTracked,
-			expectSkipContains: "未コミットの変更があるため更新をスキップ",
+			expectSkipContains: "未コミットの変更があるため pull/submodule をスキップ",
 		},
 		{
 			name:               "untracked の未コミット変更がある場合はスキップ",
 			setupRepo:          createRepoWithUpstreamAndDirtyUntracked,
-			expectSkipContains: "未コミットの変更があるため更新をスキップ",
+			expectSkipContains: "未コミットの変更があるため pull/submodule をスキップ",
 		},
 		{
 			name:               "stash が残っている場合はスキップ",
 			setupRepo:          createRepoWithUpstreamAndStash,
-			expectSkipContains: "stash が残っているため更新をスキップ",
+			expectSkipContains: "stash が残っているため pull/submodule をスキップ",
 		},
 		{
 			name:               "detached HEAD の場合はスキップ",
 			setupRepo:          createRepoWithUpstreamAndDetachedHEAD,
-			expectSkipContains: "detached HEAD のため更新をスキップ",
+			expectSkipContains: "detached HEAD のため pull/submodule をスキップ",
 		},
 	}
 
@@ -234,6 +234,38 @@ func TestUpdateSkipsOnUnsafeRepoState(t *testing.T) {
 				t.Fatalf("skipメッセージに %q が含まれていません: %v", tc.expectSkipContains, result.SkippedMessages)
 			}
 		})
+	}
+}
+
+func TestUpdateSkipsOnUnsafeRepoStateNonDryRun(t *testing.T) {
+	t.Parallel()
+
+	repoPath := createRepoWithUpstreamAndDirtyTracked(t)
+
+	result, err := Update(context.Background(), repoPath, UpdateOptions{
+		Prune:           true,
+		AutoStash:       true,
+		SubmoduleUpdate: true,
+		DryRun:          false,
+	})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if result == nil {
+		t.Fatalf("Update() result is nil")
+	}
+
+	if hasCommandContaining(result.Commands, " pull --rebase") {
+		t.Fatalf("危険状態のはずなのに pull コマンドが計画に含まれています: %v", result.Commands)
+	}
+
+	if hasCommandContaining(result.Commands, " submodule update") {
+		t.Fatalf("危険状態のはずなのに submodule update コマンドが計画に含まれています: %v", result.Commands)
+	}
+
+	if !hasMessageContaining(result.SkippedMessages, "pull/submodule をスキップ") {
+		t.Fatalf("skipメッセージに %q が含まれていません: %v", "pull/submodule をスキップ", result.SkippedMessages)
 	}
 }
 
@@ -292,6 +324,8 @@ func createRepoWithUpstream(t *testing.T) string {
 	runGit(t, sourcePath, "commit", "-m", "initial commit")
 	runGit(t, sourcePath, "push", "-u", "origin", "HEAD")
 	runGit(t, "", "clone", remotePath, workPath)
+	runGit(t, workPath, "config", "user.email", "devsync-test@example.com")
+	runGit(t, workPath, "config", "user.name", "devsync-test")
 
 	return workPath
 }

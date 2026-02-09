@@ -186,7 +186,7 @@ func detectUnsafeRepoState(ctx context.Context, repoPath string) ([]string, erro
 	}
 
 	if dirty {
-		messages = append(messages, "未コミットの変更があるため更新をスキップしました（tracked/untracked を含む）")
+		messages = append(messages, "未コミットの変更があるため pull/submodule をスキップしました（tracked/untracked を含む）")
 	}
 
 	hasStash, err := hasStash(ctx, repoPath)
@@ -195,7 +195,7 @@ func detectUnsafeRepoState(ctx context.Context, repoPath string) ([]string, erro
 	}
 
 	if hasStash {
-		messages = append(messages, "stash が残っているため更新をスキップしました（git stash list で確認してください）")
+		messages = append(messages, "stash が残っているため pull/submodule をスキップしました（git stash list で確認してください）")
 	}
 
 	detached, err := isDetachedHEAD(ctx, repoPath)
@@ -204,16 +204,14 @@ func detectUnsafeRepoState(ctx context.Context, repoPath string) ([]string, erro
 	}
 
 	if detached {
-		messages = append(messages, "detached HEAD のため更新をスキップしました（ブランチをチェックアウトしてください）")
+		messages = append(messages, "detached HEAD のため pull/submodule をスキップしました（ブランチをチェックアウトしてください）")
 	}
 
 	return messages, nil
 }
 
 func hasStash(ctx context.Context, repoPath string) (bool, error) {
-	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "stash", "list")
-
-	output, err := cmd.Output()
+	output, err := runGitCommandOutput(ctx, repoPath, "stash", "list")
 	if err != nil {
 		return false, err
 	}
@@ -222,12 +220,27 @@ func hasStash(ctx context.Context, repoPath string) (bool, error) {
 }
 
 func isDetachedHEAD(ctx context.Context, repoPath string) (bool, error) {
-	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "--abbrev-ref", "HEAD")
-
-	output, err := cmd.Output()
+	output, err := runGitCommandOutput(ctx, repoPath, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return false, err
 	}
 
 	return strings.TrimSpace(string(output)) == "HEAD", nil
+}
+
+func runGitCommandOutput(ctx context.Context, repoPath string, args ...string) ([]byte, error) {
+	commandArgs := append([]string{"-C", repoPath}, args...)
+	cmd := exec.CommandContext(ctx, "git", commandArgs...)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if message == "" {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("%w: %s", err, message)
+	}
+
+	return output, nil
 }
