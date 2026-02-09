@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
@@ -28,6 +32,12 @@ const (
 var errConfigInitCanceled = errors.New("config init canceled")
 
 var availableSystemManagers = []string{"apt", "brew", "go", "npm", "snap", "pipx", "cargo"}
+
+// テストで対話入力や外部依存を差し替えるためのフック
+var (
+	surveyAskOneStep             = survey.AskOne
+	getPowerShellProfilePathStep = getPowerShellProfilePath
+)
 
 type configInitDefaults struct {
 	RepoRoot        string
@@ -504,84 +514,40 @@ func generateShellInit(home string) error {
 	shell := detectShell()
 	configDir := filepath.Join(home, ".config", "devsync")
 
-	// 現在の実行ファイルのパスを取得
-	exePath, err := os.Executable()
+	exePath, err := resolveExecutablePath()
 	if err != nil {
-		return fmt.Errorf("実行ファイルのパス取得に失敗: %w", err)
-	}
-	// シンボリックリンクを解決
-	exePath, err = filepath.EvalSymlinks(exePath)
-	if err != nil {
-		return fmt.Errorf("シンボリックリンクの解決に失敗: %w", err)
+		return err
 	}
 
-	var scriptPath string
-
-	var scriptContent string
-
-	switch shell {
-	case shellPowerShell, "pwsh":
-		scriptPath = filepath.Join(configDir, "init.ps1")
-		scriptContent = getPowerShellScript(exePath)
-	case shellZsh:
-		scriptPath = filepath.Join(configDir, "init.zsh")
-		scriptContent = getZshScript(exePath)
-	case shellBash:
-		scriptPath = filepath.Join(configDir, "init.bash")
-		scriptContent = getBashScript(exePath)
-	default:
-		scriptPath = filepath.Join(configDir, "init.sh")
-		scriptContent = getShScript(exePath)
-	}
+	scriptPath, scriptContent := resolveInitScript(shell, configDir, exePath)
 
 	// スクリプトを保存
-	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0o644); err != nil {
-		return fmt.Errorf("スクリプトファイルの保存に失敗: %w", err)
+	writeErr := os.WriteFile(scriptPath, []byte(scriptContent), 0o644)
+	if writeErr != nil {
+		return fmt.Errorf("スクリプトファイルの保存に失敗: %w", writeErr)
 	}
 
 	fmt.Printf("\n📝 シェル初期化スクリプトを生成しました: %s\n", scriptPath)
 
-	// rcファイルへの追加を確認
-	var rcFilePath string
-
-	var sourceCommand string
-
-	switch shell {
-	case shellPowerShell, "pwsh":
-		// PowerShellプロファイルのパスを取得
-		profilePath, err := getPowerShellProfilePath(shell)
-		if err != nil {
-			fmt.Printf("\n⚠️  PowerShell プロファイルパスの取得に失敗しました: %v\n", err)
-			fmt.Printf("次のコマンドを PowerShell のプロファイル ($PROFILE) に手動で追加してください:\n")
-			fmt.Printf("\n  . %q\n", scriptPath)
-
-			return nil
-		}
-
-		rcFilePath = profilePath
-		// PowerShellではパスにスペースが含まれる可能性があるため引用符で囲む
-		sourceCommand = fmt.Sprintf(". %q", scriptPath)
-	case shellZsh:
-		rcFilePath = filepath.Join(home, ".zshrc")
-		sourceCommand = fmt.Sprintf("source %s", scriptPath)
-	case shellBash:
-		rcFilePath = filepath.Join(home, ".bashrc")
-		sourceCommand = fmt.Sprintf("source %s", scriptPath)
-	default:
+	rcFilePath, sourceCommand, supported, err := resolveShellRcFile(shell, home, scriptPath)
+	if !supported {
+		// sh の場合は dot コマンド (.) を使う
 		fmt.Printf("\n次のコマンドをシェルの設定ファイルに追加してください:\n")
-		fmt.Printf("\n  source %s\n", scriptPath)
+		fmt.Printf("\n  %s %s\n", getSourceKeyword(shell), quoteForPosixShell(scriptPath))
 
 		return nil
 	}
 
-	// rcファイルへの追加確認
-	addToRc := false
-	prompt := &survey.Confirm{
-		Message: fmt.Sprintf("%s に自動的に読み込む設定を追加しますか？", rcFilePath),
-		Default: true,
+	if err != nil {
+		fmt.Printf("\n⚠️  PowerShell プロファイルパスの取得に失敗しました: %v\n", err)
+		fmt.Printf("次のコマンドを PowerShell のプロファイル ($PROFILE) に手動で追加してください:\n")
+		fmt.Printf("\n  . %s\n", quoteForPowerShell(scriptPath))
+
+		return nil
 	}
 
-	if err := survey.AskOne(prompt, &addToRc); err != nil {
+	addToRc, err := confirmAddToRc(rcFilePath)
+	if err != nil {
 		return err
 	}
 
@@ -599,9 +565,109 @@ func generateShellInit(home string) error {
 
 	fmt.Printf("\n✅ %s に設定を追加しました！\n", rcFilePath)
 	fmt.Println("次回シェル起動時から自動的に devsync が利用可能になります。")
-	fmt.Printf("\n現在のシェルに反映するには: source %s\n", rcFilePath)
+
+	fmt.Printf("\n現在のシェルに反映するには: %s\n", buildReloadCommand(shell, rcFilePath))
 
 	return nil
+}
+
+func resolveExecutablePath() (string, error) {
+	// 現在の実行ファイルのパスを取得
+	exePath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("実行ファイルのパス取得に失敗: %w", err)
+	}
+
+	// シンボリックリンクを解決
+	exePath, err = filepath.EvalSymlinks(exePath)
+	if err != nil {
+		return "", fmt.Errorf("シンボリックリンクの解決に失敗: %w", err)
+	}
+
+	return exePath, nil
+}
+
+func resolveInitScript(shell, configDir, exePath string) (scriptPath, scriptContent string) {
+	switch shell {
+	case shellPowerShell, "pwsh":
+		return filepath.Join(configDir, "init.ps1"), getPowerShellScript(exePath)
+	case shellZsh:
+		return filepath.Join(configDir, "init.zsh"), getZshScript(exePath)
+	case shellBash:
+		return filepath.Join(configDir, "init.bash"), getBashScript(exePath)
+	default:
+		return filepath.Join(configDir, "init.sh"), getShScript(exePath)
+	}
+}
+
+func resolveShellRcFile(shell, home, scriptPath string) (rcFilePath, sourceCommand string, supported bool, err error) {
+	switch shell {
+	case shellPowerShell, "pwsh":
+		profilePath, err := getPowerShellProfilePathStep(shell)
+		if err != nil {
+			return "", "", true, err
+		}
+
+		// PowerShell ではパスにスペースが含まれる可能性があるため、文字列として正しく解釈される形で引用符を付けます。
+		return profilePath, fmt.Sprintf(". %s", quoteForPowerShell(scriptPath)), true, nil
+	case shellZsh:
+		rcFilePath := filepath.Join(home, ".zshrc")
+		return rcFilePath, fmt.Sprintf("source %s", quoteForPosixShell(scriptPath)), true, nil
+	case shellBash:
+		rcFilePath := filepath.Join(home, ".bashrc")
+		return rcFilePath, fmt.Sprintf("source %s", quoteForPosixShell(scriptPath)), true, nil
+	default:
+		return "", "", false, nil
+	}
+}
+
+func confirmAddToRc(rcFilePath string) (bool, error) {
+	addToRc := false
+	prompt := &survey.Confirm{
+		Message: fmt.Sprintf("%s に自動的に読み込む設定を追加しますか？", rcFilePath),
+		Default: true,
+	}
+
+	if err := surveyAskOneStep(prompt, &addToRc); err != nil {
+		return false, err
+	}
+
+	return addToRc, nil
+}
+
+// getSourceKeyword はシェルに応じたファイル読み込みコマンドを返します。
+// sh の場合は POSIX 標準の dot コマンド (.) を、その他は source を返します。
+func getSourceKeyword(shell string) string {
+	if shell == "sh" {
+		return "."
+	}
+	return "source"
+}
+
+func buildReloadCommand(shell, rcFilePath string) string {
+	if shell == shellPowerShell || shell == "pwsh" {
+		return ". $PROFILE"
+	}
+
+	return fmt.Sprintf("%s %s", getSourceKeyword(shell), quoteForPosixShell(rcFilePath))
+}
+
+func quoteForPosixShell(path string) string {
+	if path == "" {
+		return "''"
+	}
+
+	// POSIX シェルの単一引用符: ' を含む場合は  '\'' でエスケープします。
+	return "'" + strings.ReplaceAll(path, "'", `'\''`) + "'"
+}
+
+func quoteForPowerShell(path string) string {
+	if path == "" {
+		return "''"
+	}
+
+	// PowerShell の単一引用符: ' は '' に置換します。
+	return "'" + strings.ReplaceAll(path, "'", "''") + "'"
 }
 
 // detectShell は現在のシェルを検出します
@@ -634,19 +700,40 @@ func detectShell() string {
 
 // getPowerShellProfilePath は PowerShell のプロファイルパスを取得します
 func getPowerShellProfilePath(shell string) (string, error) {
-	var cmd *exec.Cmd
+	return getPowerShellProfilePathWithOutput(shell, func(command string, args ...string) ([]byte, error) {
+		cmd := exec.CommandContext(context.Background(), command, args...)
+		return cmd.Output()
+	})
+}
+
+type commandOutputFunc func(command string, args ...string) ([]byte, error)
+
+func getPowerShellProfilePathWithOutput(shell string, commandOutput commandOutputFunc) (string, error) {
+	command := "powershell"
 	if shell == "pwsh" {
-		cmd = exec.CommandContext(context.Background(), "pwsh", "-NoProfile", "-Command", "echo $PROFILE")
-	} else {
-		cmd = exec.CommandContext(context.Background(), "powershell", "-NoProfile", "-Command", "echo $PROFILE")
+		command = "pwsh"
 	}
 
-	output, err := cmd.Output()
+	// PowerShell の標準出力は環境によって文字コードが変わるため、パス文字列を Base64(UTF-8) で受け取ります。
+	// これにより、日本語を含むパスでも文字化けせず安全に復元できます。
+	psCommand := "[System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($PROFILE))"
+
+	output, err := commandOutput(command, "-NoProfile", "-NonInteractive", "-Command", psCommand)
 	if err != nil {
 		return "", err
 	}
 
-	profilePath := strings.TrimSpace(string(output))
+	encoded := strings.TrimSpace(decodePowerShellTextOutput(output))
+	if encoded == "" {
+		return "", fmt.Errorf("プロファイルパスの取得に失敗しました（出力が空です）")
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", fmt.Errorf("プロファイルパスのデコードに失敗しました: %w", err)
+	}
+
+	profilePath := strings.TrimSpace(string(decoded))
 	if profilePath == "" {
 		return "", fmt.Errorf("プロファイルパスが空です")
 	}
@@ -660,6 +747,48 @@ func getPowerShellProfilePath(shell string) (string, error) {
 	}
 
 	return profilePath, nil
+}
+
+func decodePowerShellTextOutput(output []byte) string {
+	if len(output) == 0 {
+		return ""
+	}
+
+	// BOM がある場合はそれを優先して扱う
+	if len(output) >= 2 && output[0] == 0xFF && output[1] == 0xFE {
+		return decodeUTF16(output[2:], binary.LittleEndian)
+	}
+
+	if len(output) >= 2 && output[0] == 0xFE && output[1] == 0xFF {
+		return decodeUTF16(output[2:], binary.BigEndian)
+	}
+
+	// BOM が無くても UTF-16LE のケースがあるため、NUL バイトを含む場合は UTF-16LE とみなします。
+	// Windows の標準出力で遭遇するパターンを優先します。
+	if bytes.IndexByte(output, 0) != -1 {
+		return decodeUTF16(output, binary.LittleEndian)
+	}
+
+	// それ以外は（Base64 の ASCII も含め）そのまま扱う
+	return string(output)
+}
+
+func decodeUTF16(data []byte, order binary.ByteOrder) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	// UTF-16 は 2 バイト単位。奇数長は末尾を切り捨てます。
+	if len(data)%2 == 1 {
+		data = data[:len(data)-1]
+	}
+
+	u16 := make([]uint16, 0, len(data)/2)
+	for i := 0; i < len(data); i += 2 {
+		u16 = append(u16, order.Uint16(data[i:i+2]))
+	}
+
+	return string(utf16.Decode(u16))
 }
 
 // appendToRcFile はrcファイルにsource行を追加します（マーカー付きで冪等性を保証）

@@ -65,6 +65,9 @@ devsync doctor
 `devsync config init` では、シェル起動時に `~/.config/devsync/init.bash`（zshは `init.zsh`）を読み込む設定を
 `~/.bashrc` / `~/.zshrc` に自動追記できます。
 
+PowerShell の場合は、`~/.config/devsync/init.ps1` を `$PROFILE`（例: `Microsoft.PowerShell_profile.ps1`）に自動追記できます。
+反映するには `. $PROFILE` を実行してください。
+
 ```bash
 # 反映確認（bash）
 grep -n ">>> devsync >>>" ~/.bashrc

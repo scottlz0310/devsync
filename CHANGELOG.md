@@ -21,6 +21,7 @@
 ### Fixed
 
 - Windows 環境で `go test ./...` が失敗する問題を修正（ホームディレクトリ環境変数のテスト分離、`gh` 実行モックの Windows 互換化など）
+- Windows/PowerShell 環境で `config init` が PowerShell プロファイルパスを文字化けして誤ったフォルダを作成する問題を修正（Base64 経由で取得）
 
 ### Infrastructure
 
