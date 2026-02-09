@@ -833,6 +833,18 @@ func TestBuildReloadCommand(t *testing.T) {
 			rcFilePath: "/home/user/My Folder/.zshrc",
 			want:       `source '/home/user/My Folder/.zshrc'`,
 		},
+		{
+			name:       "sh は dot コマンドを使用する（POSIX互換）",
+			shell:      "sh",
+			rcFilePath: "/home/user/.profile",
+			want:       `. '/home/user/.profile'`,
+		},
+		{
+			name:       "sh でスペースを含むパスも正しくクォートされる",
+			shell:      "sh",
+			rcFilePath: "/home/user/My Folder/.profile",
+			want:       `. '/home/user/My Folder/.profile'`,
+		},
 	}
 
 	for _, tc := range testCases {

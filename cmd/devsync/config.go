@@ -531,8 +531,13 @@ func generateShellInit(home string) error {
 
 	rcFilePath, sourceCommand, supported, err := resolveShellRcFile(shell, home, scriptPath)
 	if !supported {
+		// POSIX sh は source をサポートしないため、dot コマンド (.) を使用
+		sourceKeyword := "source"
+		if shell == "sh" {
+			sourceKeyword = "."
+		}
 		fmt.Printf("\n次のコマンドをシェルの設定ファイルに追加してください:\n")
-		fmt.Printf("\n  source %s\n", quoteForPosixShell(scriptPath))
+		fmt.Printf("\n  %s %s\n", sourceKeyword, quoteForPosixShell(scriptPath))
 
 		return nil
 	}
@@ -639,7 +644,13 @@ func buildReloadCommand(shell, rcFilePath string) string {
 		return ". $PROFILE"
 	}
 
-	return fmt.Sprintf("source %s", quoteForPosixShell(rcFilePath))
+	// POSIX sh は source をサポートしないため、dot コマンド (.) を使用
+	sourceKeyword := "source"
+	if shell == "sh" {
+		sourceKeyword = "."
+	}
+
+	return fmt.Sprintf("%s %s", sourceKeyword, quoteForPosixShell(rcFilePath))
 }
 
 func quoteForPosixShell(path string) string {
