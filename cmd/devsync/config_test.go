@@ -527,9 +527,11 @@ func TestDecodePowerShellTextOutput(t *testing.T) {
 	encodeUTF16 := func(order binary.ByteOrder, s string) []byte {
 		u16 := utf16.Encode([]rune(s))
 		out := make([]byte, len(u16)*2)
+
 		for i, v := range u16 {
 			order.PutUint16(out[i*2:i*2+2], v)
 		}
+
 		return out
 	}
 
@@ -586,9 +588,11 @@ func TestGetPowerShellProfilePathWithOutput(t *testing.T) {
 		out := make([]byte, 2+len(u16)*2)
 		out[0] = 0xFF
 		out[1] = 0xFE
+
 		for i, v := range u16 {
 			binary.LittleEndian.PutUint16(out[2+i*2:2+i*2+2], v)
 		}
+
 		return out
 	}
 
@@ -677,6 +681,7 @@ func TestGetPowerShellProfilePathWithOutput(t *testing.T) {
 			output := tc.outputBuilder(profilePath)
 			got, err := getPowerShellProfilePathWithOutput(tc.shell, func(command string, args ...string) ([]byte, error) {
 				gotCommand = command
+
 				gotArgs = append([]string(nil), args...)
 				return output, tc.outputErr
 			})
@@ -708,6 +713,135 @@ func TestGetPowerShellProfilePathWithOutput(t *testing.T) {
 				if _, statErr := os.Stat(profileDir); statErr != nil {
 					t.Fatalf("profileDir should exist, statErr=%v", statErr)
 				}
+			}
+		})
+	}
+}
+
+func TestQuoteForPosixShell(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "空文字は単一引用符の空",
+			input: "",
+			want:  "''",
+		},
+		{
+			name:  "通常パスは単一引用符で囲む",
+			input: "/home/user/.bashrc",
+			want:  `'/home/user/.bashrc'`,
+		},
+		{
+			name:  "スペースを含むパスも単一引用符で囲む",
+			input: "/home/user/My Folder/.bashrc",
+			want:  `'/home/user/My Folder/.bashrc'`,
+		},
+		{
+			name:  "シングルクォートは POSIX 形式でエスケープする",
+			input: "/home/user/it's/.bashrc",
+			want:  `'/home/user/it'\''s/.bashrc'`,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := quoteForPosixShell(tc.input)
+			if got != tc.want {
+				t.Fatalf("quoteForPosixShell(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestQuoteForPowerShell(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "空文字は単一引用符の空",
+			input: "",
+			want:  "''",
+		},
+		{
+			name:  "通常パスは単一引用符で囲む",
+			input: `C:\Users\jojob\OneDrive\ドキュメント\PowerShell\Microsoft.PowerShell_profile.ps1`,
+			want:  `'C:\Users\jojob\OneDrive\ドキュメント\PowerShell\Microsoft.PowerShell_profile.ps1'`,
+		},
+		{
+			name:  "シングルクォートは 2 つにしてエスケープする",
+			input: `C:\Users\O'Brien\file.ps1`,
+			want:  `'C:\Users\O''Brien\file.ps1'`,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := quoteForPowerShell(tc.input)
+			if got != tc.want {
+				t.Fatalf("quoteForPowerShell(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBuildReloadCommand(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		shell      string
+		rcFilePath string
+		want       string
+	}{
+		{
+			name:       "pwsh は $PROFILE を dot source する",
+			shell:      "pwsh",
+			rcFilePath: "/tmp/.bashrc",
+			want:       ". $PROFILE",
+		},
+		{
+			name:       "powershell は $PROFILE を dot source する",
+			shell:      shellPowerShell,
+			rcFilePath: "/tmp/.bashrc",
+			want:       ". $PROFILE",
+		},
+		{
+			name:       "bash は rc ファイルを source する（パスはクォート）",
+			shell:      shellBash,
+			rcFilePath: "/home/user/My Folder/.bashrc",
+			want:       `source '/home/user/My Folder/.bashrc'`,
+		},
+		{
+			name:       "zsh は rc ファイルを source する（パスはクォート）",
+			shell:      shellZsh,
+			rcFilePath: "/home/user/My Folder/.zshrc",
+			want:       `source '/home/user/My Folder/.zshrc'`,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := buildReloadCommand(tc.shell, tc.rcFilePath)
+			if got != tc.want {
+				t.Fatalf("buildReloadCommand(%q, %q) = %q, want %q", tc.shell, tc.rcFilePath, got, tc.want)
 			}
 		})
 	}
