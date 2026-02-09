@@ -234,7 +234,7 @@ func detectNonDefaultTrackingBranch(ctx context.Context, repoPath string) string
 
 	remote, _, ok := strings.Cut(upstreamRef, "/")
 	if !ok || strings.TrimSpace(remote) == "" {
-		return ""
+		return fmt.Sprintf("%s: upstream の参照 %q が `<remote>/<branch>` 形式ではありません", skipPullUpstreamDetectFailedMessage, upstreamRef)
 	}
 
 	defaultRef, err := getRemoteDefaultRef(ctx, repoPath, remote)

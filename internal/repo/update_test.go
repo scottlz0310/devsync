@@ -206,6 +206,11 @@ func TestUpdateSkipsOnUnsafeRepoState(t *testing.T) {
 			expectSkipContains: skipPullDefaultBranchDetectFailedMessage,
 		},
 		{
+			name:               "upstream が <remote>/<branch> 形式でない場合はスキップ",
+			setupRepo:          createLocalRepoWithLocalUpstream,
+			expectSkipContains: skipPullUpstreamDetectFailedMessage,
+		},
+		{
 			name:               "デフォルトブランチ以外を追跡している場合はスキップ",
 			setupRepo:          createRepoWithNonDefaultUpstream,
 			expectSkipContains: skipPullNonDefaultUpstreamMessage,
@@ -299,6 +304,18 @@ func createLocalRepoWithoutUpstream(t *testing.T) string {
 
 	runGit(t, repoPath, "add", "README.md")
 	runGit(t, repoPath, "commit", "-m", "initial commit")
+
+	return repoPath
+}
+
+func createLocalRepoWithLocalUpstream(t *testing.T) string {
+	t.Helper()
+
+	repoPath := createLocalRepoWithoutUpstream(t)
+
+	// upstream をローカルブランチに設定し、@{u} が "<remote>/<branch>" 形式にならない状態を模擬する。
+	runGit(t, repoPath, "branch", "devsync-test-upstream-target")
+	runGit(t, repoPath, "branch", "--set-upstream-to=devsync-test-upstream-target")
 
 	return repoPath
 }
