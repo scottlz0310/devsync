@@ -109,4 +109,3 @@ repo:
 		t.Fatalf("output does not mention repo.root: %q", out)
 	}
 }
-

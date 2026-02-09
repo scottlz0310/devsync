@@ -17,6 +17,7 @@ func TestValidate(t *testing.T) {
 
 	existingDir := t.TempDir()
 	existingFile := filepath.Join(t.TempDir(), "not-a-dir.txt")
+
 	if err := os.WriteFile(existingFile, []byte("x"), 0o644); err != nil {
 		t.Fatalf("failed to write temp file: %v", err)
 	}

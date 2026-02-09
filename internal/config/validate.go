@@ -74,6 +74,7 @@ func validateControl(result *ValidationResult, cfg *Config) {
 			Field:   "control.timeout",
 			Message: "空です（例: \"10m\"）",
 		})
+
 		return
 	}
 
@@ -83,6 +84,7 @@ func validateControl(result *ValidationResult, cfg *Config) {
 			Field:   "control.timeout",
 			Message: fmt.Sprintf("不正な期間です: %q（例: \"10m\"）", timeout),
 		})
+
 		return
 	}
 
@@ -101,6 +103,7 @@ func validateRepo(result *ValidationResult, cfg *Config) {
 			Field:   "repo.root",
 			Message: "空です（例: \"~/src\" ではなくフルパスで指定してください）",
 		})
+
 		return
 	}
 
@@ -109,6 +112,7 @@ func validateRepo(result *ValidationResult, cfg *Config) {
 			Field:   "repo.root",
 			Message: fmt.Sprintf("チルダ（~）は自動展開されません: %q（フルパスで指定してください）", root),
 		})
+
 		return
 	}
 
@@ -184,6 +188,7 @@ func validateSecrets(result *ValidationResult, cfg *Config) {
 			Field:   "secrets.provider",
 			Message: "空です（例: bitwarden）",
 		})
+
 		return
 	}
 
@@ -211,6 +216,7 @@ func validateSys(result *ValidationResult, cfg *Config, opts ValidateOptions) {
 				Field:   "sys.enable",
 				Message: "空のマネージャ名が含まれています",
 			})
+
 			continue
 		}
 

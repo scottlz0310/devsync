@@ -159,6 +159,7 @@ func runConfigShow(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("📋 設定ファイル: %s\n", path)
+
 	if exists {
 		fmt.Println("✅ 設定ファイルを読み込みました")
 	} else {
@@ -191,6 +192,7 @@ func runConfigValidate(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("📋 設定ファイル: %s\n", path)
+
 	if exists {
 		fmt.Println("✅ 設定ファイルを読み込みました")
 	} else {
@@ -208,6 +210,7 @@ func runConfigValidate(cmd *cobra.Command, args []string) error {
 
 	if len(result.Warnings) > 0 {
 		fmt.Println("\n⚠️  警告:")
+
 		for _, w := range result.Warnings {
 			fmt.Printf("  - %s\n", w.String())
 		}
@@ -215,6 +218,7 @@ func runConfigValidate(cmd *cobra.Command, args []string) error {
 
 	if len(result.Errors) > 0 {
 		fmt.Println("\n❌ エラー:")
+
 		for _, e := range result.Errors {
 			fmt.Printf("  - %s\n", e.String())
 		}
@@ -225,6 +229,7 @@ func runConfigValidate(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("\n✅ 設定の検証に成功しました。")
+
 	if !exists {
 		fmt.Println("   まだ設定ファイルを作成していない場合は `devsync config init` の実行を推奨します。")
 	}
