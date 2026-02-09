@@ -211,12 +211,7 @@ func detectUnsafeRepoState(ctx context.Context, repoPath string) ([]string, erro
 	}
 
 	if !detached {
-		msg, err := detectNonDefaultTrackingBranch(ctx, repoPath)
-		if err != nil {
-			return nil, err
-		}
-
-		if msg != "" {
+		if msg := detectNonDefaultTrackingBranch(ctx, repoPath); msg != "" {
 			messages = append(messages, msg)
 		}
 	}
@@ -224,28 +219,28 @@ func detectUnsafeRepoState(ctx context.Context, repoPath string) ([]string, erro
 	return messages, nil
 }
 
-func detectNonDefaultTrackingBranch(ctx context.Context, repoPath string) (string, error) {
+func detectNonDefaultTrackingBranch(ctx context.Context, repoPath string) string {
 	upstreamRef, hasUpstream, err := getUpstreamRef(ctx, repoPath)
 	if err != nil {
-		return "", err
+		return fmt.Sprintf("追跡ブランチの判定に失敗したため pull/submodule をスキップしました: %v", err)
 	}
 
 	if !hasUpstream {
-		return "", nil
+		return ""
 	}
 
 	remote, _, ok := strings.Cut(upstreamRef, "/")
 	if !ok || strings.TrimSpace(remote) == "" {
-		return "", nil
+		return ""
 	}
 
 	defaultRef, ok, err := getRemoteDefaultRef(ctx, repoPath, remote)
 	if err != nil {
-		return "", err
+		return fmt.Sprintf("デフォルトブランチの判定に失敗したため pull/submodule をスキップしました: %v", err)
 	}
 
 	if !ok || defaultRef == upstreamRef {
-		return "", nil
+		return ""
 	}
 
 	branch := "<unknown>"
@@ -253,11 +248,12 @@ func detectNonDefaultTrackingBranch(ctx context.Context, repoPath string) (strin
 		branch = current
 	}
 
-	return fmt.Sprintf("%s（現在: %s, 追跡: %s, デフォルト: %s）。デフォルトブランチをチェックアウトして再実行してください。", skipPullNonDefaultUpstreamMessage, branch, upstreamRef, defaultRef), nil
+	return fmt.Sprintf("%s（現在: %s, 追跡: %s, デフォルト: %s）。デフォルトブランチをチェックアウトして再実行してください。", skipPullNonDefaultUpstreamMessage, branch, upstreamRef, defaultRef)
 }
 
-func getUpstreamRef(ctx context.Context, repoPath string) (string, bool, error) {
+func getUpstreamRef(ctx context.Context, repoPath string) (upstreamRef string, hasUpstream bool, err error) {
 	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+
 	output, err := cmd.Output()
 	if err != nil {
 		if isNoUpstreamError(err) {
@@ -275,13 +271,15 @@ func getUpstreamRef(ctx context.Context, repoPath string) (string, bool, error) 
 	return ref, true, nil
 }
 
-func getRemoteDefaultRef(ctx context.Context, repoPath, remote string) (string, bool, error) {
+func getRemoteDefaultRef(ctx context.Context, repoPath, remote string) (defaultRef string, ok bool, err error) {
 	refName := fmt.Sprintf("refs/remotes/%s/HEAD", remote)
 
 	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "symbolic-ref", "--quiet", refName)
+
 	output, err := cmd.Output()
 	if err == nil {
 		ref := strings.TrimSpace(string(output))
+
 		ref = strings.TrimPrefix(ref, "refs/remotes/")
 		if ref == "" {
 			return "", false, fmt.Errorf("リモートのデフォルトブランチ取得に失敗しました（出力が空です）")
@@ -292,9 +290,10 @@ func getRemoteDefaultRef(ctx context.Context, repoPath, remote string) (string, 
 
 	// refs/remotes/<remote>/HEAD が無い環境向けのフォールバック。
 	showCmd := exec.CommandContext(ctx, "git", "-C", repoPath, "remote", "show", "-n", remote)
+
 	showOutput, showErr := showCmd.Output()
 	if showErr != nil {
-		return "", false, nil
+		return "", false, fmt.Errorf("リモート情報の取得に失敗しました: %w", showErr)
 	}
 
 	branch := parseRemoteShowHeadBranch(string(showOutput))

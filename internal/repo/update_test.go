@@ -425,9 +425,11 @@ func getOriginDefaultBranchName(t *testing.T, repoPath string) string {
 	t.Helper()
 
 	cmd := exec.CommandContext(context.Background(), "git", "-C", repoPath, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
+
 	output, err := cmd.Output()
 	if err == nil {
 		ref := strings.TrimSpace(string(output))
+
 		ref = strings.TrimPrefix(ref, "refs/remotes/origin/")
 		if ref != "" {
 			return ref
@@ -435,6 +437,7 @@ func getOriginDefaultBranchName(t *testing.T, repoPath string) string {
 	}
 
 	showCmd := exec.CommandContext(context.Background(), "git", "-C", repoPath, "remote", "show", "-n", "origin")
+
 	showOutput, showErr := showCmd.Output()
 	if showErr != nil {
 		t.Fatalf("failed to run git remote show: %v", showErr)
