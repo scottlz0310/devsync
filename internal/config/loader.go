@@ -91,6 +91,9 @@ func Default() *Config {
 			Timeout:     "10m",
 			DryRun:      false,
 		},
+		UI: UIConfig{
+			TUI: false,
+		},
 		Repo: RepoConfig{
 			Root: defaultRoot,
 			GitHub: GitHubConfig{
@@ -125,6 +128,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("control.concurrency", 8)
 	v.SetDefault("control.timeout", "10m")
 	v.SetDefault("control.dry_run", false)
+
+	// UI
+	v.SetDefault("ui.tui", false)
 
 	// Repo
 	home, err := os.UserHomeDir()

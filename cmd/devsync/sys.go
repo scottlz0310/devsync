@@ -22,6 +22,7 @@ var (
 	sysJobs    int
 	sysTimeout string
 	sysTUI     bool
+	sysNoTUI   bool
 )
 
 // sysCmd はシステム関連コマンドのルートです
@@ -68,7 +69,8 @@ func init() {
 	sysUpdateCmd.Flags().BoolVarP(&sysVerbose, "verbose", "v", false, "詳細なログを出力")
 	sysUpdateCmd.Flags().IntVarP(&sysJobs, "jobs", "j", 0, "並列実行数（0以下の場合は設定値または1を使用）")
 	sysUpdateCmd.Flags().StringVarP(&sysTimeout, "timeout", "t", "10m", "全体のタイムアウト時間")
-	sysUpdateCmd.Flags().BoolVar(&sysTUI, "tui", false, "Bubble Tea の進捗UIを表示")
+	sysUpdateCmd.Flags().BoolVar(&sysTUI, "tui", false, "Bubble Tea の進捗UIを表示（既定値は config.yaml の ui.tui）")
+	sysUpdateCmd.Flags().BoolVar(&sysNoTUI, "no-tui", false, "TUI 進捗表示を無効化（設定より優先）")
 }
 
 func runSysUpdate(cmd *cobra.Command, args []string) error {
@@ -88,12 +90,17 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "⚠️  %v\n", err)
 	}
 
-	useTUI, warning := resolveTUIEnabled(sysTUI)
+	tuiReq, err := resolveTUIRequest(cfg.UI.TUI, cmd.Flags().Changed("tui"), sysTUI, cmd.Flags().Changed("no-tui"), sysNoTUI)
+	if err != nil {
+		return err
+	}
+
+	useTUI, warning := resolveTUIEnabled(tuiReq)
 	printTUIWarning(warning)
 
 	// 有効なマネージャがない場合は利用可能なものを表示
 	if len(enabledUpdaters) == 0 {
-		printNoTargetTUIMessage(sysTUI, "sys update")
+		printNoTargetTUIMessage(tuiReq, "sys update")
 		printNoManagerHelp()
 
 		return nil

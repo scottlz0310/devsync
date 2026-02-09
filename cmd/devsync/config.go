@@ -43,6 +43,7 @@ type configInitDefaults struct {
 	RepoRoot        string
 	GitHubOwner     string
 	Concurrency     int
+	EnableTUI       bool
 	EnabledManagers []string
 }
 
@@ -50,6 +51,7 @@ type configInitAnswers struct {
 	RepoRoot        string
 	GithubOwner     string
 	Concurrency     int
+	EnableTUI       bool
 	EnabledManagers []string
 }
 
@@ -162,6 +164,13 @@ func askConfigInitAnswers(defaults configInitDefaults) (configInitAnswers, error
 			},
 		},
 		{
+			Name: "EnableTUI",
+			Prompt: &survey.Confirm{
+				Message: "進捗表示をTUI (Bubble Tea) で表示しますか？",
+				Default: defaults.EnableTUI,
+			},
+		},
+		{
 			Name: "EnabledManagers",
 			Prompt: &survey.MultiSelect{
 				Message: "有効にするシステムマネージャ:",
@@ -200,6 +209,9 @@ func buildConfigFromInitAnswers(answers configInitAnswers) *config.Config {
 			Concurrency: answers.Concurrency,
 			Timeout:     "10m",
 			DryRun:      false,
+		},
+		UI: config.UIConfig{
+			TUI: answers.EnableTUI,
 		},
 		Repo: config.RepoConfig{
 			Root: answers.RepoRoot,
@@ -346,6 +358,7 @@ func buildConfigInitDefaults(
 		RepoRoot:        filepath.Join(home, "src"),
 		GitHubOwner:     strings.TrimSpace(autoGitHubOwner),
 		Concurrency:     8,
+		EnableTUI:       false,
 		EnabledManagers: append([]string(nil), recommendedManagers...),
 	}
 
@@ -361,6 +374,8 @@ func buildConfigInitDefaults(
 		if existingCfg.Control.Concurrency > 0 {
 			defaults.Concurrency = existingCfg.Control.Concurrency
 		}
+
+		defaults.EnableTUI = existingCfg.UI.TUI
 
 		if len(existingCfg.Sys.Enable) > 0 {
 			defaults.EnabledManagers = append([]string(nil), existingCfg.Sys.Enable...)

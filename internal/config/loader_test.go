@@ -22,6 +22,9 @@ func TestDefault(t *testing.T) {
 		assert.Equal(t, "10m", cfg.Control.Timeout)
 		assert.False(t, cfg.Control.DryRun)
 
+		// UI defaults
+		assert.False(t, cfg.UI.TUI)
+
 		// Repo defaults
 		home, err := os.UserHomeDir()
 		require.NoError(t, err)
@@ -83,6 +86,8 @@ control:
   concurrency: 16
   timeout: "30m"
   dry_run: true
+ui:
+  tui: true
 repo:
   root: /custom/path
   github:
@@ -112,6 +117,7 @@ secrets:
 		assert.Equal(t, 16, cfg.Control.Concurrency)
 		assert.Equal(t, "30m", cfg.Control.Timeout)
 		assert.True(t, cfg.Control.DryRun)
+		assert.True(t, cfg.UI.TUI)
 		assert.Equal(t, "/custom/path", cfg.Repo.Root)
 		assert.Equal(t, "ssh", cfg.Repo.GitHub.Protocol)
 		assert.False(t, cfg.Repo.Sync.AutoStash)
@@ -153,6 +159,7 @@ control:
 		// 環境変数で設定を上書き
 		t.Setenv("DEVSYNC_CONTROL_CONCURRENCY", "32")
 		t.Setenv("DEVSYNC_CONTROL_DRY_RUN", "true")
+		t.Setenv("DEVSYNC_UI_TUI", "true")
 
 		// currentConfigをリセット
 		currentConfig = nil
@@ -162,6 +169,7 @@ control:
 
 		assert.Equal(t, 32, cfg.Control.Concurrency)
 		assert.True(t, cfg.Control.DryRun)
+		assert.True(t, cfg.UI.TUI)
 	})
 }
 
