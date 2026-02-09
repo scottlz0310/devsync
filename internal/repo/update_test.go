@@ -201,6 +201,11 @@ func TestUpdateSkipsOnUnsafeRepoState(t *testing.T) {
 			expectSkipContains: "detached HEAD のため pull/submodule をスキップ",
 		},
 		{
+			name:               "リモートのデフォルトブランチが判定できない場合はスキップ",
+			setupRepo:          createRepoWithUpstreamWithoutRemoteHead,
+			expectSkipContains: skipPullDefaultBranchDetectFailedMessage,
+		},
+		{
 			name:               "デフォルトブランチ以外を追跡している場合はスキップ",
 			setupRepo:          createRepoWithNonDefaultUpstream,
 			expectSkipContains: skipPullNonDefaultUpstreamMessage,
@@ -391,6 +396,16 @@ func createRepoWithUpstreamAndDetachedHEAD(t *testing.T) string {
 	return repoPath
 }
 
+func createRepoWithUpstreamWithoutRemoteHead(t *testing.T) string {
+	t.Helper()
+
+	repoPath := createRepoWithUpstream(t)
+
+	runGit(t, repoPath, "symbolic-ref", "-d", "refs/remotes/origin/HEAD")
+
+	return repoPath
+}
+
 func createRepoWithNonDefaultUpstream(t *testing.T) string {
 	t.Helper()
 
@@ -424,28 +439,14 @@ func createRepoWithDifferentLocalBranchTrackingDefault(t *testing.T) string {
 func getOriginDefaultBranchName(t *testing.T, repoPath string) string {
 	t.Helper()
 
-	cmd := exec.CommandContext(context.Background(), "git", "-C", repoPath, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
-
-	output, err := cmd.Output()
-	if err == nil {
-		ref := strings.TrimSpace(string(output))
-
-		ref = strings.TrimPrefix(ref, "refs/remotes/origin/")
-		if ref != "" {
-			return ref
-		}
+	defaultRef, err := getRemoteDefaultRef(context.Background(), repoPath, "origin")
+	if err != nil {
+		t.Fatalf("failed to detect origin default branch: %v", err)
 	}
 
-	showCmd := exec.CommandContext(context.Background(), "git", "-C", repoPath, "remote", "show", "-n", "origin")
-
-	showOutput, showErr := showCmd.Output()
-	if showErr != nil {
-		t.Fatalf("failed to run git remote show: %v", showErr)
-	}
-
-	branch := parseRemoteShowHeadBranch(string(showOutput))
-	if branch == "" || branch == "(unknown)" {
-		t.Fatalf("failed to detect origin default branch: %q", branch)
+	_, branch, ok := strings.Cut(defaultRef, "/")
+	if !ok || branch == "" {
+		t.Fatalf("failed to parse origin default branch: %q", defaultRef)
 	}
 
 	return branch

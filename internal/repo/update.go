@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -9,8 +10,10 @@ import (
 )
 
 const (
-	skipPullNoUpstreamMessage         = "upstream が未設定のため pull をスキップしました"
-	skipPullNonDefaultUpstreamMessage = "デフォルトブランチ以外を追跡しているため pull/submodule をスキップしました"
+	skipPullNoUpstreamMessage                = "upstream が未設定のため pull をスキップしました"
+	skipPullNonDefaultUpstreamMessage        = "デフォルトブランチ以外を追跡しているため pull/submodule をスキップしました"
+	skipPullUpstreamDetectFailedMessage      = "追跡ブランチの判定に失敗したため pull/submodule をスキップしました"
+	skipPullDefaultBranchDetectFailedMessage = "デフォルトブランチの判定に失敗したため pull/submodule をスキップしました"
 )
 
 // UpdateOptions は repo update の実行オプションです。
@@ -222,7 +225,7 @@ func detectUnsafeRepoState(ctx context.Context, repoPath string) ([]string, erro
 func detectNonDefaultTrackingBranch(ctx context.Context, repoPath string) string {
 	upstreamRef, hasUpstream, err := getUpstreamRef(ctx, repoPath)
 	if err != nil {
-		return fmt.Sprintf("追跡ブランチの判定に失敗したため pull/submodule をスキップしました: %v", err)
+		return fmt.Sprintf("%s: %v", skipPullUpstreamDetectFailedMessage, err)
 	}
 
 	if !hasUpstream {
@@ -234,12 +237,12 @@ func detectNonDefaultTrackingBranch(ctx context.Context, repoPath string) string
 		return ""
 	}
 
-	defaultRef, ok, err := getRemoteDefaultRef(ctx, repoPath, remote)
+	defaultRef, err := getRemoteDefaultRef(ctx, repoPath, remote)
 	if err != nil {
-		return fmt.Sprintf("デフォルトブランチの判定に失敗したため pull/submodule をスキップしました: %v", err)
+		return fmt.Sprintf("%s: %v", skipPullDefaultBranchDetectFailedMessage, err)
 	}
 
-	if !ok || defaultRef == upstreamRef {
+	if defaultRef == upstreamRef {
 		return ""
 	}
 
@@ -260,7 +263,15 @@ func getUpstreamRef(ctx context.Context, repoPath string) (upstreamRef string, h
 			return "", false, nil
 		}
 
-		return "", false, err
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+			stderr := strings.TrimSpace(string(exitErr.Stderr))
+			if stderr != "" {
+				return "", false, fmt.Errorf("git rev-parse --abbrev-ref --symbolic-full-name @{u} に失敗しました: %w: %s", err, stderr)
+			}
+		}
+
+		return "", false, fmt.Errorf("git rev-parse --abbrev-ref --symbolic-full-name @{u} に失敗しました: %w", err)
 	}
 
 	ref := strings.TrimSpace(string(output))
@@ -271,50 +282,30 @@ func getUpstreamRef(ctx context.Context, repoPath string) (upstreamRef string, h
 	return ref, true, nil
 }
 
-func getRemoteDefaultRef(ctx context.Context, repoPath, remote string) (defaultRef string, ok bool, err error) {
+func getRemoteDefaultRef(ctx context.Context, repoPath, remote string) (defaultRef string, err error) {
 	refName := fmt.Sprintf("refs/remotes/%s/HEAD", remote)
 
 	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "symbolic-ref", "--quiet", refName)
 
 	output, err := cmd.Output()
-	if err == nil {
-		ref := strings.TrimSpace(string(output))
-
-		ref = strings.TrimPrefix(ref, "refs/remotes/")
-		if ref == "" {
-			return "", false, fmt.Errorf("リモートのデフォルトブランチ取得に失敗しました（出力が空です）")
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+			stderr := strings.TrimSpace(string(exitErr.Stderr))
+			if stderr != "" {
+				return "", fmt.Errorf("git symbolic-ref --quiet %s に失敗しました: %w: %s", refName, err, stderr)
+			}
 		}
 
-		return ref, true, nil
+		return "", fmt.Errorf("git symbolic-ref --quiet %s に失敗しました: %w", refName, err)
 	}
 
-	// refs/remotes/<remote>/HEAD が無い環境向けのフォールバック。
-	showCmd := exec.CommandContext(ctx, "git", "-C", repoPath, "remote", "show", "-n", remote)
-
-	showOutput, showErr := showCmd.Output()
-	if showErr != nil {
-		return "", false, fmt.Errorf("リモート情報の取得に失敗しました: %w", showErr)
+	ref := strings.TrimPrefix(strings.TrimSpace(string(output)), "refs/remotes/")
+	if ref == "" {
+		return "", fmt.Errorf("リモートのデフォルトブランチ取得に失敗しました（出力が空です）")
 	}
 
-	branch := parseRemoteShowHeadBranch(string(showOutput))
-	if branch == "" || branch == "(unknown)" {
-		return "", false, nil
-	}
-
-	return fmt.Sprintf("%s/%s", remote, branch), true, nil
-}
-
-func parseRemoteShowHeadBranch(output string) string {
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "HEAD branch:") {
-			continue
-		}
-
-		return strings.TrimSpace(strings.TrimPrefix(line, "HEAD branch:"))
-	}
-
-	return ""
+	return ref, nil
 }
 
 func getCurrentBranchName(ctx context.Context, repoPath string) (string, error) {
