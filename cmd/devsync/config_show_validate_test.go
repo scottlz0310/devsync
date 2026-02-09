@@ -24,18 +24,31 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	os.Stdout = writeEnd
 
-	var buf bytes.Buffer
-	copyDone := make(chan struct{})
-	var copyErr error
+	var (
+		buf      bytes.Buffer
+		copyErr  error
+		copyDone = make(chan struct{})
+	)
 
 	defer func() {
 		os.Stdout = original
-		_ = writeEnd.Close()
-		_ = readEnd.Close()
+
+		if writeEnd != nil {
+			if err := writeEnd.Close(); err != nil {
+				t.Errorf("stdout writer close error: %v", err)
+			}
+		}
+
+		if readEnd != nil {
+			if err := readEnd.Close(); err != nil {
+				t.Errorf("stdout reader close error: %v", err)
+			}
+		}
 	}()
 
 	go func() {
 		_, copyErr = io.Copy(&buf, readEnd)
+
 		close(copyDone)
 	}()
 
@@ -46,6 +59,9 @@ func captureStdout(t *testing.T, fn func()) string {
 		t.Fatalf("stdout writer close error: %v", closeErr)
 	}
 
+	writeEnd = nil
+	os.Stdout = original
+
 	<-copyDone
 
 	if copyErr != nil {
@@ -55,6 +71,8 @@ func captureStdout(t *testing.T, fn func()) string {
 	if closeErr := readEnd.Close(); closeErr != nil {
 		t.Fatalf("stdout reader close error: %v", closeErr)
 	}
+
+	readEnd = nil
 
 	return buf.String()
 }
