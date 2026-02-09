@@ -99,6 +99,7 @@
 - [x] 日常運用コマンドを `task check` に統一（`task daily` 追加）
 - [x] gitleaks によるシークレット混入チェックを追加（GitHub Actions / `task secrets`）
 - [x] Windows 環境で `go test ./...` が通るようにテストをクロスプラットフォーム化（HOME/USERPROFILE 分離など）
+- [x] Windows 環境で Git の `core.autocrlf` により Go ファイルが CRLF になり `task lint` の gofmt チェックが失敗する問題を回避（`.gitattributes` で LF 固定）
 - [x] GitHub Actions CI に Windows ランナーでのテスト実行を追加（`go test ./...`）
 - [x] `repo update` のレビュー指摘対応（DryRun計画整合 / `.git` 判定厳格化 / submoduleフラグ整理）
 - [x] 初回運用導線の改善（`config init` 誘導 / `doctor` 設定表示の明確化 / エラー重複解消 / `sys list` 有効列の明示 / `--tui` 対象0件メッセージ）

@@ -1,0 +1,6 @@
+# Go のソースは gofmt の出力（LF）に揃える。
+# Windows の core.autocrlf により CRLF 化すると `task lint` の gofmt チェックが落ちるため、
+# .gitattributes 側で明示的に LF を強制する。
+*.go   text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
