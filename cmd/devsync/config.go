@@ -531,13 +531,9 @@ func generateShellInit(home string) error {
 
 	rcFilePath, sourceCommand, supported, err := resolveShellRcFile(shell, home, scriptPath)
 	if !supported {
-		// POSIX sh は source をサポートしないため、dot コマンド (.) を使用
-		sourceKeyword := "source"
-		if shell == "sh" {
-			sourceKeyword = "."
-		}
+		// sh の場合は dot コマンド (.) を使う
 		fmt.Printf("\n次のコマンドをシェルの設定ファイルに追加してください:\n")
-		fmt.Printf("\n  %s %s\n", sourceKeyword, quoteForPosixShell(scriptPath))
+		fmt.Printf("\n  %s %s\n", getSourceKeyword(shell), quoteForPosixShell(scriptPath))
 
 		return nil
 	}
@@ -639,18 +635,21 @@ func confirmAddToRc(rcFilePath string) (bool, error) {
 	return addToRc, nil
 }
 
+// getSourceKeyword はシェルに応じたファイル読み込みコマンドを返します。
+// sh の場合は POSIX 標準の dot コマンド (.) を、その他は source を返します。
+func getSourceKeyword(shell string) string {
+	if shell == "sh" {
+		return "."
+	}
+	return "source"
+}
+
 func buildReloadCommand(shell, rcFilePath string) string {
 	if shell == shellPowerShell || shell == "pwsh" {
 		return ". $PROFILE"
 	}
 
-	// POSIX sh は source をサポートしないため、dot コマンド (.) を使用
-	sourceKeyword := "source"
-	if shell == "sh" {
-		sourceKeyword = "."
-	}
-
-	return fmt.Sprintf("%s %s", sourceKeyword, quoteForPosixShell(rcFilePath))
+	return fmt.Sprintf("%s %s", getSourceKeyword(shell), quoteForPosixShell(rcFilePath))
 }
 
 func quoteForPosixShell(path string) string {

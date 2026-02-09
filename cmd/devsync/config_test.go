@@ -800,6 +800,54 @@ func TestQuoteForPowerShell(t *testing.T) {
 	}
 }
 
+func TestGetSourceKeyword(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		shell string
+		want  string
+	}{
+		{
+			name:  "sh は dot コマンドを返す",
+			shell: "sh",
+			want:  ".",
+		},
+		{
+			name:  "bash は source を返す",
+			shell: shellBash,
+			want:  "source",
+		},
+		{
+			name:  "zsh は source を返す",
+			shell: shellZsh,
+			want:  "source",
+		},
+		{
+			name:  "fish は source を返す",
+			shell: "fish",
+			want:  "source",
+		},
+		{
+			name:  "不明なシェルも source を返す",
+			shell: "unknown",
+			want:  "source",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := getSourceKeyword(tc.shell)
+			if got != tc.want {
+				t.Errorf("getSourceKeyword(%q) = %q, want %q", tc.shell, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestBuildReloadCommand(t *testing.T) {
 	t.Parallel()
 
