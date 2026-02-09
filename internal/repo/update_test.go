@@ -113,6 +113,11 @@ func TestUpdateDryRunPlan(t *testing.T) {
 			expectPullCommand: true,
 		},
 		{
+			name:              "ローカルブランチ名が異なってもデフォルト追跡ならpull計画を含む",
+			setupRepo:         createRepoWithDifferentLocalBranchTrackingDefault,
+			expectPullCommand: true,
+		},
+		{
 			name:               "upstreamなしはpull計画を除外",
 			setupRepo:          createLocalRepoWithoutUpstream,
 			expectPullCommand:  false,
@@ -194,6 +199,11 @@ func TestUpdateSkipsOnUnsafeRepoState(t *testing.T) {
 			name:               "detached HEAD の場合はスキップ",
 			setupRepo:          createRepoWithUpstreamAndDetachedHEAD,
 			expectSkipContains: "detached HEAD のため pull/submodule をスキップ",
+		},
+		{
+			name:               "デフォルトブランチ以外を追跡している場合はスキップ",
+			setupRepo:          createRepoWithNonDefaultUpstream,
+			expectSkipContains: skipPullNonDefaultUpstreamMessage,
 		},
 	}
 
@@ -379,6 +389,63 @@ func createRepoWithUpstreamAndDetachedHEAD(t *testing.T) string {
 	runGit(t, repoPath, "checkout", "--detach", "HEAD")
 
 	return repoPath
+}
+
+func createRepoWithNonDefaultUpstream(t *testing.T) string {
+	t.Helper()
+
+	repoPath := createRepoWithUpstream(t)
+
+	runGit(t, repoPath, "checkout", "-b", "devsync-test-feature")
+
+	filePath := filepath.Join(repoPath, "README.md")
+	if err := os.WriteFile(filePath, []byte("# upstream\nfeature\n"), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	runGit(t, repoPath, "add", "README.md")
+	runGit(t, repoPath, "commit", "-m", "feature commit")
+	runGit(t, repoPath, "push", "-u", "origin", "HEAD")
+
+	return repoPath
+}
+
+func createRepoWithDifferentLocalBranchTrackingDefault(t *testing.T) string {
+	t.Helper()
+
+	repoPath := createRepoWithUpstream(t)
+	defaultBranch := getOriginDefaultBranchName(t, repoPath)
+
+	runGit(t, repoPath, "checkout", "-b", "devsync-test-local-default", "--track", "origin/"+defaultBranch)
+
+	return repoPath
+}
+
+func getOriginDefaultBranchName(t *testing.T, repoPath string) string {
+	t.Helper()
+
+	cmd := exec.CommandContext(context.Background(), "git", "-C", repoPath, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
+	output, err := cmd.Output()
+	if err == nil {
+		ref := strings.TrimSpace(string(output))
+		ref = strings.TrimPrefix(ref, "refs/remotes/origin/")
+		if ref != "" {
+			return ref
+		}
+	}
+
+	showCmd := exec.CommandContext(context.Background(), "git", "-C", repoPath, "remote", "show", "-n", "origin")
+	showOutput, showErr := showCmd.Output()
+	if showErr != nil {
+		t.Fatalf("failed to run git remote show: %v", showErr)
+	}
+
+	branch := parseRemoteShowHeadBranch(string(showOutput))
+	if branch == "" || branch == "(unknown)" {
+		t.Fatalf("failed to detect origin default branch: %q", branch)
+	}
+
+	return branch
 }
 
 func runGit(t *testing.T, repoPath string, args ...string) {

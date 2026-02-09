@@ -8,7 +8,10 @@ import (
 	"strings"
 )
 
-const skipPullNoUpstreamMessage = "upstream が未設定のため pull をスキップしました"
+const (
+	skipPullNoUpstreamMessage         = "upstream が未設定のため pull をスキップしました"
+	skipPullNonDefaultUpstreamMessage = "デフォルトブランチ以外を追跡しているため pull/submodule をスキップしました"
+)
 
 // UpdateOptions は repo update の実行オプションです。
 type UpdateOptions struct {
@@ -207,7 +210,121 @@ func detectUnsafeRepoState(ctx context.Context, repoPath string) ([]string, erro
 		messages = append(messages, "detached HEAD のため pull/submodule をスキップしました（ブランチをチェックアウトしてください）")
 	}
 
+	if !detached {
+		msg, err := detectNonDefaultTrackingBranch(ctx, repoPath)
+		if err != nil {
+			return nil, err
+		}
+
+		if msg != "" {
+			messages = append(messages, msg)
+		}
+	}
+
 	return messages, nil
+}
+
+func detectNonDefaultTrackingBranch(ctx context.Context, repoPath string) (string, error) {
+	upstreamRef, hasUpstream, err := getUpstreamRef(ctx, repoPath)
+	if err != nil {
+		return "", err
+	}
+
+	if !hasUpstream {
+		return "", nil
+	}
+
+	remote, _, ok := strings.Cut(upstreamRef, "/")
+	if !ok || strings.TrimSpace(remote) == "" {
+		return "", nil
+	}
+
+	defaultRef, ok, err := getRemoteDefaultRef(ctx, repoPath, remote)
+	if err != nil {
+		return "", err
+	}
+
+	if !ok || defaultRef == upstreamRef {
+		return "", nil
+	}
+
+	branch := "<unknown>"
+	if current, branchErr := getCurrentBranchName(ctx, repoPath); branchErr == nil && current != "" {
+		branch = current
+	}
+
+	return fmt.Sprintf("%s（現在: %s, 追跡: %s, デフォルト: %s）。デフォルトブランチをチェックアウトして再実行してください。", skipPullNonDefaultUpstreamMessage, branch, upstreamRef, defaultRef), nil
+}
+
+func getUpstreamRef(ctx context.Context, repoPath string) (string, bool, error) {
+	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+	output, err := cmd.Output()
+	if err != nil {
+		if isNoUpstreamError(err) {
+			return "", false, nil
+		}
+
+		return "", false, err
+	}
+
+	ref := strings.TrimSpace(string(output))
+	if ref == "" {
+		return "", false, fmt.Errorf("upstream の取得に失敗しました（出力が空です）")
+	}
+
+	return ref, true, nil
+}
+
+func getRemoteDefaultRef(ctx context.Context, repoPath, remote string) (string, bool, error) {
+	refName := fmt.Sprintf("refs/remotes/%s/HEAD", remote)
+
+	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "symbolic-ref", "--quiet", refName)
+	output, err := cmd.Output()
+	if err == nil {
+		ref := strings.TrimSpace(string(output))
+		ref = strings.TrimPrefix(ref, "refs/remotes/")
+		if ref == "" {
+			return "", false, fmt.Errorf("リモートのデフォルトブランチ取得に失敗しました（出力が空です）")
+		}
+
+		return ref, true, nil
+	}
+
+	// refs/remotes/<remote>/HEAD が無い環境向けのフォールバック。
+	showCmd := exec.CommandContext(ctx, "git", "-C", repoPath, "remote", "show", "-n", remote)
+	showOutput, showErr := showCmd.Output()
+	if showErr != nil {
+		return "", false, nil
+	}
+
+	branch := parseRemoteShowHeadBranch(string(showOutput))
+	if branch == "" || branch == "(unknown)" {
+		return "", false, nil
+	}
+
+	return fmt.Sprintf("%s/%s", remote, branch), true, nil
+}
+
+func parseRemoteShowHeadBranch(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "HEAD branch:") {
+			continue
+		}
+
+		return strings.TrimSpace(strings.TrimPrefix(line, "HEAD branch:"))
+	}
+
+	return ""
+}
+
+func getCurrentBranchName(ctx context.Context, repoPath string) (string, error) {
+	output, err := runGitCommandOutput(ctx, repoPath, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(output)), nil
 }
 
 func hasStash(ctx context.Context, repoPath string) (bool, error) {
