@@ -239,7 +239,7 @@ func detectNonDefaultTrackingBranch(ctx context.Context, repoPath string) string
 
 	defaultRef, err := getRemoteDefaultRef(ctx, repoPath, remote)
 	if err != nil {
-		return fmt.Sprintf("%s: %v", skipPullDefaultBranchDetectFailedMessage, err)
+		return fmt.Sprintf("%s: %v。`refs/remotes/%s/HEAD` が存在しないか壊れている可能性があります。`git remote set-head %s -a` または `git fetch %s` を実行してから再実行してください。", skipPullDefaultBranchDetectFailedMessage, err, remote, remote, remote)
 	}
 
 	if defaultRef == upstreamRef {

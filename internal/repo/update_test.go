@@ -207,7 +207,7 @@ func TestUpdateSkipsOnUnsafeRepoState(t *testing.T) {
 		},
 		{
 			name:               "upstream が <remote>/<branch> 形式でない場合はスキップ",
-			setupRepo:          createLocalRepoWithLocalUpstream,
+			setupRepo:          createRepoWithUpstreamAndLocalUpstreamRef,
 			expectSkipContains: skipPullUpstreamDetectFailedMessage,
 		},
 		{
@@ -289,6 +289,71 @@ func TestUpdateSkipsOnUnsafeRepoStateNonDryRun(t *testing.T) {
 	}
 }
 
+func TestUpdateSkipsOnNonDefaultTrackingNonDryRun(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name               string
+		setupRepo          func(t *testing.T) string
+		expectSkipContains string
+	}{
+		{
+			name:               "デフォルトブランチ以外を追跡している場合はスキップ",
+			setupRepo:          createRepoWithNonDefaultUpstream,
+			expectSkipContains: skipPullNonDefaultUpstreamMessage,
+		},
+		{
+			name:               "リモートのデフォルトブランチが判定できない場合はスキップ",
+			setupRepo:          createRepoWithUpstreamWithoutRemoteHead,
+			expectSkipContains: skipPullDefaultBranchDetectFailedMessage,
+		},
+		{
+			name:               "upstream が <remote>/<branch> 形式でない場合はスキップ",
+			setupRepo:          createRepoWithUpstreamAndLocalUpstreamRef,
+			expectSkipContains: skipPullUpstreamDetectFailedMessage,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			repoPath := tc.setupRepo(t)
+
+			result, err := Update(context.Background(), repoPath, UpdateOptions{
+				Prune:           true,
+				AutoStash:       true,
+				SubmoduleUpdate: true,
+				DryRun:          false,
+			})
+			if err != nil {
+				t.Fatalf("Update() error = %v", err)
+			}
+
+			if result == nil {
+				t.Fatalf("Update() result is nil")
+			}
+
+			if !hasCommandContaining(result.Commands, " fetch --all --prune") {
+				t.Fatalf("fetch コマンドが計画に含まれていません: %v", result.Commands)
+			}
+
+			if hasCommandContaining(result.Commands, " pull --rebase") {
+				t.Fatalf("安全側スキップのはずなのに pull コマンドが計画に含まれています: %v", result.Commands)
+			}
+
+			if hasCommandContaining(result.Commands, " submodule update") {
+				t.Fatalf("安全側スキップのはずなのに submodule update コマンドが計画に含まれています: %v", result.Commands)
+			}
+
+			if !hasMessageContaining(result.SkippedMessages, tc.expectSkipContains) {
+				t.Fatalf("skipメッセージに %q が含まれていません: %v", tc.expectSkipContains, result.SkippedMessages)
+			}
+		})
+	}
+}
+
 func createLocalRepoWithoutUpstream(t *testing.T) string {
 	t.Helper()
 
@@ -304,18 +369,6 @@ func createLocalRepoWithoutUpstream(t *testing.T) string {
 
 	runGit(t, repoPath, "add", "README.md")
 	runGit(t, repoPath, "commit", "-m", "initial commit")
-
-	return repoPath
-}
-
-func createLocalRepoWithLocalUpstream(t *testing.T) string {
-	t.Helper()
-
-	repoPath := createLocalRepoWithoutUpstream(t)
-
-	// upstream をローカルブランチに設定し、@{u} が "<remote>/<branch>" 形式にならない状態を模擬する。
-	runGit(t, repoPath, "branch", "devsync-test-upstream-target")
-	runGit(t, repoPath, "branch", "--set-upstream-to=devsync-test-upstream-target")
 
 	return repoPath
 }
@@ -413,10 +466,31 @@ func createRepoWithUpstreamAndDetachedHEAD(t *testing.T) string {
 	return repoPath
 }
 
+func createRepoWithUpstreamAndLocalUpstreamRef(t *testing.T) string {
+	t.Helper()
+
+	repoPath := createRepoWithUpstream(t)
+
+	branch, err := getCurrentBranchName(context.Background(), repoPath)
+	if err != nil {
+		t.Fatalf("failed to detect branch name: %v", err)
+	}
+
+	// upstream をローカルブランチに設定し、@{u} が "<remote>/<branch>" 形式にならない状態を模擬する。
+	runGit(t, repoPath, "branch", "devsync-test-local-upstream-target")
+	runGit(t, repoPath, "branch", "--set-upstream-to=devsync-test-local-upstream-target", branch)
+
+	return repoPath
+}
+
 func createRepoWithUpstreamWithoutRemoteHead(t *testing.T) string {
 	t.Helper()
 
 	repoPath := createRepoWithUpstream(t)
+
+	// Update() は先に fetch を実行するため、fetch 後も remote HEAD が復元されない状態を作る。
+	// remote.origin.followRemoteHEAD=never により、fetch が refs/remotes/origin/HEAD を再生成しないようにする。
+	runGit(t, repoPath, "config", "remote.origin.followRemoteHEAD", "never")
 
 	runGit(t, repoPath, "symbolic-ref", "-d", "refs/remotes/origin/HEAD")
 
