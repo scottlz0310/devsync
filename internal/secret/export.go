@@ -15,6 +15,8 @@ var (
 	validExportKeyRegex = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 )
 
+const goosWindows = "windows"
+
 // ShellType はサポートされているシェルの種類を表します。
 type ShellType string
 
@@ -33,7 +35,7 @@ func ExportFormat(envVars map[string]string) (string, error) {
 // DetectShell は現在のシェルを検出します。
 func DetectShell() ShellType {
 	// Windowsの場合、PowerShellを返す
-	if runtime.GOOS == "windows" || os.Getenv("PSModulePath") != "" {
+	if runtime.GOOS == goosWindows || os.Getenv("PSModulePath") != "" {
 		return ShellPowerShell
 	}
 
@@ -124,7 +126,7 @@ func GetShellName() string {
 
 // GetShellExecutable は現在のシェルの実行ファイルパスを返します。
 func GetShellExecutable() string {
-	if runtime.GOOS == "windows" || os.Getenv("PSModulePath") != "" {
+	if runtime.GOOS == goosWindows || os.Getenv("PSModulePath") != "" {
 		// PowerShell Core (pwsh) の存在を確認
 		if _, err := exec.LookPath("pwsh"); err == nil {
 			return "pwsh"

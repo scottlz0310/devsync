@@ -281,7 +281,7 @@ func TestDetectShell(t *testing.T) {
 			result := DetectShell()
 
 			expected := tt.expected
-			if runtime.GOOS == "windows" {
+			if runtime.GOOS == goosWindows {
 				expected = ShellPowerShell
 			}
 
@@ -325,7 +325,7 @@ func TestGetShellName(t *testing.T) {
 			result := GetShellName()
 
 			expected := tt.expected
-			if runtime.GOOS == "windows" {
+			if runtime.GOOS == goosWindows {
 				expected = string(ShellPowerShell)
 			}
 
@@ -374,7 +374,7 @@ func TestGetShellExecutable(t *testing.T) {
 			t.Setenv("SHELL", tt.shell)
 
 			result := GetShellExecutable()
-			if runtime.GOOS == "windows" {
+			if runtime.GOOS == goosWindows {
 				assert.Contains(t, []string{"pwsh", "powershell"}, result)
 				return
 			}
