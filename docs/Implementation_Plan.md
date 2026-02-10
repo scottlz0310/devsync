@@ -37,8 +37,11 @@
 
 予定機能（未実装）:
 
-- `devsync repo cleanup`（マージ済みブランチ削除）
-- `devsync config show` / `devsync config validate`
+- 通知機能
+- `sys` マネージャ拡張（flatpak/fwupdmgr/pnpm/nvm/uv/rustup/gem/winget/scoop 等）
+- リリース/CI（GoReleaser/GitHub Actions/E2E）
+- `sys update` / `repo update` の E2E テスト整備
+- TUI UX 改善
 
 ## 4. 設定スキーマ（config.yaml）
 
@@ -120,10 +123,10 @@ secrets:
 
 ### Phase 7：運用安全性・完成度の強化（次の優先）
 
-- [ ] `repo sync` の安全運用を段階的に強化（危険状態はスキップして理由を表示）
-- [ ] 判定ロジックを table-driven tests で固定（境界値・失敗系を優先）
-- [ ] `config show` / `config validate` の追加
-- [ ] テスト拡充（`internal/config` / `internal/secret` / `internal/updater`）
-- [ ] `repo cleanup` の移植
+- [x] `repo sync` の安全運用を段階的に強化（危険状態はスキップして理由を表示）
+- [x] 判定ロジックを table-driven tests で固定（境界値・失敗系を優先）
+- [x] `config show` / `config validate` の追加
+- [x] テスト拡充（`internal/config` / `internal/secret` / `internal/updater`）
+- [x] `repo cleanup` の移植
 - [ ] `sys` マネージャ拡張（flatpak/fwupdmgr/pnpm/nvm/uv/rustup/gem/winget/scoop 等）
 - [ ] リリース/CI（GoReleaser/GitHub Actions/E2E）

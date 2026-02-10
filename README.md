@@ -123,6 +123,8 @@ devsync repo update --submodule      # submodule更新を強制有効化（設�
 devsync repo update --no-submodule   # submodule更新を強制無効化（設定値を上書き）
 devsync repo list         # 管理下リポジトリの一覧と状態を表示
 devsync repo list --root ~/src # ルートを上書きして一覧表示
+devsync repo cleanup      # マージ済みローカルブランチを整理
+devsync repo cleanup -n   # DryRun（削除計画のみ表示）
 ```
 
 `repo list` は `config.yaml` の `repo.root` 配下をスキャンし、状態を表示します。
@@ -134,6 +136,13 @@ submodule 更新の既定値は `config.yaml` の `repo.sync.submodule_update` �
 CLI では `--submodule` / `--no-submodule` で明示的に上書きできます。
 `ui.tui=true` の場合は `--tui` なしでも、更新の進捗・ログ・失敗状態をインタラクティブに表示します。
 コマンド単位で上書きしたい場合は `--tui` / `--no-tui` を使用します。
+
+`repo cleanup` はマージ済みローカルブランチの削除を行います（安全側優先）。
+`repo.cleanup.target` に `merged` / `squashed` を設定できます。
+`merged` は git のマージ判定（`--merged`）に基づき、通常削除（`git branch -d`）します。
+`squashed` は GitHub の PR 情報に基づき「PR は merged だが git 的には未マージ」なブランチを強制削除（`git branch -D`）します。
+このとき **PR の head commit とローカルブランチ先頭コミットが一致する場合のみ** 削除対象にします（安全側のため）。
+削除計画の精度を担保するため、DryRun（`-n/--dry-run`）でも `git fetch --all` は実行します（ただし DryRun 時は `--prune` を無効化します）。
 
 ### 環境変数 (`env`)
 ```
@@ -148,9 +157,6 @@ devsync config show       # 現在の設定を表示（YAML）
 devsync config validate   # 設定内容を検証
 devsync config uninstall  # シェル設定からdevsyncを削除
 ```
-
-### 予定機能
-- `devsync repo cleanup`: マージ済みブランチの整理（未実装）
 
 ## 🚧 Alpha リリース方針（v0.1.0-alpha）
 

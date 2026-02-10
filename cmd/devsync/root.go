@@ -28,6 +28,7 @@ var rootCmd = &cobra.Command{
 リポジトリ管理:
   devsync repo update   管理下のリポジトリを更新
   devsync repo list     管理下のリポジトリ一覧と状態を表示
+  devsync repo cleanup  マージ済みローカルブランチを整理
 
 環境変数:
   devsync env export    Bitwardenから環境変数をシェル形式で出力
@@ -45,7 +46,8 @@ var rootCmd = &cobra.Command{
   devsync env run npm run build   # 環境変数を注入してビルド
   devsync sys update -n           # ドライラン（計画のみ表示）
   devsync sys update --jobs 4     # 4並列で更新
-  devsync repo update --jobs 4    # リポジトリを4並列で更新`,
+  devsync repo update --jobs 4    # リポジトリを4並列で更新
+  devsync repo cleanup -n         # 削除対象ブランチの計画を表示（DryRun）`,
 }
 
 // Execute はコマンド実行のエントリーポイントです

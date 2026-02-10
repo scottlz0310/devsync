@@ -128,7 +128,7 @@
     - [x] `internal/config` のテスト追加
     - [x] `internal/updater` のテスト追加（モック使用）
     - [x] `internal/secret` のテスト追加（Bitwarden部分はモック）
-- [ ] `repo cleanup` (マージ済みブランチ削除) の移植
+- [x] `repo cleanup` (マージ済みブランチ削除) の移植
 - [x] `config show` / `config validate` コマンド
 - [ ] `sys` パッケージマネージャ対応を `sysup` 同等以上へ拡張
     - [ ] 既存実装（`apt` / `brew` / `go` / `npm` / `snap` / `pipx` / `cargo`）との差分棚卸し
