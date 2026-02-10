@@ -124,10 +124,10 @@
     - [x] upstream 未設定時の更新スキップ理由の統一（既存挙動の回帰テスト化）
     - [x] デフォルト以外の追跡ブランチ運用時の更新可否ルールを明文化し実装
     - [x] `setup-repo` との比較マニュアルテスト項目を固定化（差分が出るケースを回帰テスト候補へ追加 / README.md に追記）
-- [ ] テストカバレッジ向上（現状18.5% → 目標50%）
-    - [ ] `internal/config` のテスト追加
-    - [ ] `internal/updater` のテスト追加（モック使用）
-    - [ ] `internal/secret` のテスト追加（Bitwarden部分はモック）
+- [x] テストカバレッジ向上（現状50.9% → 目標50%）
+    - [x] `internal/config` のテスト追加
+    - [x] `internal/updater` のテスト追加（モック使用）
+    - [x] `internal/secret` のテスト追加（Bitwarden部分はモック）
 - [ ] `repo cleanup` (マージ済みブランチ削除) の移植
 - [x] `config show` / `config validate` コマンド
 - [ ] `sys` パッケージマネージャ対応を `sysup` 同等以上へ拡張

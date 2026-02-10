@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 )
 
 // RunWithEnv は環境変数を注入してコマンドを実行します。
@@ -23,12 +25,7 @@ func RunWithEnv(args []string, envVars map[string]string) error {
 	}
 
 	// 現在の環境変数を取得
-	currentEnv := os.Environ()
-
-	// Bitwardenから取得した環境変数を追加
-	for key, value := range envVars {
-		currentEnv = append(currentEnv, fmt.Sprintf("%s=%s", key, value))
-	}
+	currentEnv := mergeEnv(os.Environ(), envVars)
 
 	// コマンドを準備
 	cmd := exec.CommandContext(context.Background(), cmdPath, cmdArgs...)
@@ -44,4 +41,43 @@ func RunWithEnv(args []string, envVars map[string]string) error {
 	}
 
 	return nil
+}
+
+func mergeEnv(base []string, overrides map[string]string) []string {
+	if len(overrides) == 0 {
+		return base
+	}
+
+	overrideKV := make(map[string]string, len(overrides))
+	for key, value := range overrides {
+		overrideKV[normalizeEnvKey(key)] = fmt.Sprintf("%s=%s", key, value)
+	}
+
+	filtered := make([]string, 0, len(base)+len(overrideKV))
+	for _, kv := range base {
+		key := kv
+		if idx := strings.IndexByte(kv, '='); idx != -1 {
+			key = kv[:idx]
+		}
+
+		if _, ok := overrideKV[normalizeEnvKey(key)]; ok {
+			continue
+		}
+
+		filtered = append(filtered, kv)
+	}
+
+	for _, kv := range overrideKV {
+		filtered = append(filtered, kv)
+	}
+
+	return filtered
+}
+
+func normalizeEnvKey(key string) string {
+	if runtime.GOOS == goosWindows {
+		return strings.ToUpper(key)
+	}
+
+	return key
 }
