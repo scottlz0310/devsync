@@ -112,7 +112,7 @@ rm -rf ~/.config/devsync
 
 **PowerShell:**
 ```powershell
-Remove-Item -Recurse -Force "$HOME\\.config\\devsync" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force (Join-Path $HOME '.config/devsync') -ErrorAction SilentlyContinue
 ```
 
 ### 3. devsync バイナリの削除

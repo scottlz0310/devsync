@@ -14,9 +14,10 @@ import (
 // ここで最小限のリトライとスロットリングを行う。
 
 const (
-	ghRetryMaxAttempts = 6
-	ghRetryBaseDelay   = 2 * time.Second
-	ghRetryMaxDelay    = 60 * time.Second
+	ghRetryMaxAttempts            = 6
+	ghRetryBaseDelay              = 2 * time.Second
+	ghRetryMaxDelay               = 60 * time.Second
+	ghRetryMaxDelayFromRetryAfter = 5 * time.Minute
 
 	// gh への同時アクセスを抑えて secondary rate limit を避ける（repo cleanup の並列数とは独立）。
 	ghConcurrencyLimit = 1
@@ -55,16 +56,16 @@ func sleepWithContext(ctx context.Context, d time.Duration) error {
 	}
 }
 
-func runGhOutputWithRetry(ctx context.Context, dir string, args ...string) ([]byte, string, error) {
+func runGhOutputWithRetry(ctx context.Context, dir string, args ...string) (output []byte, stderr string, err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	var lastStderr string
+	var lastErr error
 
 	for attempt := 1; attempt <= ghRetryMaxAttempts; attempt++ {
-		output, stderr, err := runGhOutputOnce(ctx, dir, args...)
-		lastStderr = stderr
+		output, stderr, err = runGhOutputOnce(ctx, dir, args...)
+		lastErr = err
 
 		if err == nil {
 			return output, stderr, nil
@@ -75,8 +76,12 @@ func runGhOutputWithRetry(ctx context.Context, dir string, args ...string) ([]by
 			return nil, stderr, ctx.Err()
 		}
 
-		if !isRetryableGhError(stderr) || attempt == ghRetryMaxAttempts {
+		if !isRetryableGhError(stderr) {
 			return nil, stderr, err
+		}
+
+		if attempt == ghRetryMaxAttempts {
+			break
 		}
 
 		delay := calcGhRetryDelay(attempt, stderr)
@@ -85,10 +90,10 @@ func runGhOutputWithRetry(ctx context.Context, dir string, args ...string) ([]by
 		}
 	}
 
-	return nil, lastStderr, fmt.Errorf("gh のリトライ回数が上限に達しました")
+	return nil, stderr, fmt.Errorf("gh のリトライ回数が上限に達しました: %w", lastErr)
 }
 
-func runGhOutputOnce(ctx context.Context, dir string, args ...string) ([]byte, string, error) {
+func runGhOutputOnce(ctx context.Context, dir string, args ...string) (output []byte, stderr string, err error) {
 	release, err := acquireGHLimiter(ctx)
 	if err != nil {
 		return nil, "", err
@@ -100,12 +105,13 @@ func runGhOutputOnce(ctx context.Context, dir string, args ...string) ([]byte, s
 		cmd.Dir = dir
 	}
 
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	var stderrBuf bytes.Buffer
 
-	output, err := cmd.Output()
+	cmd.Stderr = &stderrBuf
 
-	return output, strings.TrimSpace(stderr.String()), err
+	output, err = cmd.Output()
+
+	return output, strings.TrimSpace(stderrBuf.String()), err
 }
 
 func isRetryableGhError(stderr string) bool {
@@ -118,6 +124,7 @@ func isRetryableGhError(stderr string) bool {
 	if strings.Contains(msg, "too many requests") || strings.Contains(msg, "429") {
 		return true
 	}
+
 	if strings.Contains(msg, "rate limit") || strings.Contains(msg, "secondary rate limit") {
 		return true
 	}
@@ -126,6 +133,7 @@ func isRetryableGhError(stderr string) bool {
 	if strings.Contains(msg, "502") || strings.Contains(msg, "503") || strings.Contains(msg, "504") {
 		return true
 	}
+
 	if strings.Contains(msg, "bad gateway") || strings.Contains(msg, "service unavailable") || strings.Contains(msg, "gateway timeout") {
 		return true
 	}
@@ -135,11 +143,13 @@ func isRetryableGhError(stderr string) bool {
 
 func calcGhRetryDelay(attempt int, stderr string) time.Duration {
 	if d, ok := parseRetryAfter(stderr); ok {
-		// ヘッダ値は最短待機なので少し余裕を持たせる
-		return clampDuration(d+time.Second, ghRetryBaseDelay, 5*time.Minute)
+		// Retry-After は「最低待機時間」なので少し余裕を持たせる。
+		// ただし無制限に待たないよう、最大値は別で制限する。
+		return clampDuration(d+time.Second, ghRetryBaseDelay, ghRetryMaxDelayFromRetryAfter)
 	}
 
 	delay := ghRetryBaseDelay * time.Duration(1<<(attempt-1))
+
 	return clampDuration(delay, ghRetryBaseDelay, ghRetryMaxDelay)
 }
 
@@ -166,13 +176,15 @@ func parseRetryAfter(stderr string) (time.Duration, bool) {
 	return parsed, true
 }
 
-func clampDuration(d, min, max time.Duration) time.Duration {
-	if d < min {
-		return min
+func clampDuration(d, minDur, maxDur time.Duration) time.Duration {
+	if d < minDur {
+		return minDur
 	}
-	if d > max {
-		return max
+
+	if d > maxDur {
+		return maxDur
 	}
+
 	return d
 }
 
