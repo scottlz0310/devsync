@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 )
 
@@ -72,12 +71,4 @@ func mergeEnv(base []string, overrides map[string]string) []string {
 	}
 
 	return filtered
-}
-
-func normalizeEnvKey(key string) string {
-	if runtime.GOOS == goosWindows {
-		return strings.ToUpper(key)
-	}
-
-	return key
 }

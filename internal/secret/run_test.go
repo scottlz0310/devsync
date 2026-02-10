@@ -21,6 +21,12 @@ func TestRunWithEnv(t *testing.T) {
 		assert.Contains(t, err.Error(), "が見つかりません")
 	})
 
+	t.Run("環境変数の上書きが不要な場合はそのまま返す", func(t *testing.T) {
+		base := []string{"A=1", "B=2"}
+		got := mergeEnv(base, nil)
+		assert.Equal(t, base, got)
+	})
+
 	t.Run("注入した環境変数が子プロセスで参照できる", func(t *testing.T) {
 		exe, err := os.Executable()
 		require.NoError(t, err)
