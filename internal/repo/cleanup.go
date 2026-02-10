@@ -199,12 +199,15 @@ func Cleanup(ctx context.Context, repoPath string, opts CleanupOptions) (*Cleanu
 }
 
 func planAndRunCleanupFetch(ctx context.Context, result *CleanupResult, repoPath string, opts CleanupOptions) error {
-	fetchArgs := buildFetchArgs(opts.Prune)
-	result.Commands = append(result.Commands, formatGitCommand(repoPath, fetchArgs))
-
-	if opts.DryRun {
-		return nil
+	// DryRun でも参照を最新化するために fetch は常に実行する。
+	// ただし DryRun 時は prune を無効化して、リモート参照の削除は行わない。
+	prune := opts.Prune
+	if opts.DryRun && prune {
+		prune = false
 	}
+
+	fetchArgs := buildFetchArgs(prune)
+	result.Commands = append(result.Commands, formatGitCommand(repoPath, fetchArgs))
 
 	if err := runGitCommand(ctx, repoPath, fetchArgs...); err != nil {
 		return fmt.Errorf("fetch に失敗: %w", err)
@@ -486,17 +489,17 @@ func listMergedLocalBranches(ctx context.Context, repoPath, baseRef string) ([]s
 func localBranchExists(ctx context.Context, repoPath, branch string) (bool, error) {
 	ref := fmt.Sprintf("refs/heads/%s", branch)
 
-	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "show-ref", "--verify", "--quiet", ref)
-	if err := cmd.Run(); err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return false, nil
-		}
-
-		return false, err
+	_, err := runGitCommandOutput(ctx, repoPath, "show-ref", "--verify", "--quiet", ref)
+	if err == nil {
+		return true, nil
 	}
 
-	return true, nil
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return false, nil
+	}
+
+	return false, err
 }
 
 func getBranchTip(ctx context.Context, repoPath, branch string) (string, error) {

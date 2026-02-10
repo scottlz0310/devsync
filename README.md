@@ -142,6 +142,7 @@ CLI では `--submodule` / `--no-submodule` で明示的に上書きできます
 `merged` は git のマージ判定（`--merged`）に基づき、通常削除（`git branch -d`）します。
 `squashed` は GitHub の PR 情報に基づき「PR は merged だが git 的には未マージ」なブランチを強制削除（`git branch -D`）します。
 このとき **PR の head commit とローカルブランチ先頭コミットが一致する場合のみ** 削除対象にします（安全側のため）。
+削除計画の精度を担保するため、DryRun（`-n/--dry-run`）でも `git fetch --all` は実行します（ただし DryRun 時は `--prune` を無効化します）。
 
 ### 環境変数 (`env`)
 ```

@@ -24,6 +24,8 @@ var (
 	repoCleanupNoTUI  bool
 )
 
+var repoCleanupStep = repomgr.Cleanup
+
 var repoCleanupCmd = &cobra.Command{
 	Use:   "cleanup",
 	Short: "マージ済みローカルブランチを整理します",
@@ -179,7 +181,7 @@ func buildRepoCleanupJobs(root string, repoPaths []string, opts repomgr.CleanupO
 func runRepoCleanupJob(ctx context.Context, repoPath string, opts repomgr.CleanupOptions) (*repomgr.CleanupResult, error) {
 	cleanupOpts, warnings := prepareRepoCleanupOptions(ctx, repoPath, opts)
 
-	cleanupResult, cleanupErr := repomgr.Cleanup(ctx, repoPath, cleanupOpts)
+	cleanupResult, cleanupErr := repoCleanupStep(ctx, repoPath, cleanupOpts)
 
 	if cleanupResult != nil && len(warnings) > 0 {
 		cleanupResult.SkippedMessages = append(cleanupResult.SkippedMessages, warnings...)

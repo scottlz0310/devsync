@@ -219,6 +219,72 @@ func TestCleanup_Squashed(t *testing.T) {
 	})
 }
 
+func TestCleanup_DryRun_FetchDoesNotPrune(t *testing.T) {
+	t.Parallel()
+
+	repoPath := createRepoWithUpstream(t)
+
+	result, err := Cleanup(context.Background(), repoPath, CleanupOptions{
+		Prune:           true,
+		DryRun:          true,
+		Targets:         []string{"merged"},
+		ExcludeBranches: nil,
+	})
+	if err != nil {
+		t.Fatalf("Cleanup() error = %v", err)
+	}
+
+	if result == nil {
+		t.Fatalf("Cleanup() result is nil")
+	}
+
+	fetchCommand := ""
+	for _, command := range result.Commands {
+		if strings.Contains(command, "fetch --all") {
+			fetchCommand = command
+			break
+		}
+	}
+
+	if fetchCommand == "" {
+		t.Fatalf("Commands should contain fetch: %v", result.Commands)
+	}
+
+	if strings.Contains(fetchCommand, "--prune") {
+		t.Fatalf("DryRun fetch should not include --prune: %s", fetchCommand)
+	}
+}
+
+func TestLocalBranchExists(t *testing.T) {
+	t.Parallel()
+
+	t.Run("存在しないブランチはfalse,nil", func(t *testing.T) {
+		t.Parallel()
+
+		repoPath := createRepoWithUpstream(t)
+
+		exists, err := localBranchExists(context.Background(), repoPath, "devsync-test-branch-not-exists")
+		if err != nil {
+			t.Fatalf("localBranchExists() error = %v", err)
+		}
+
+		if exists {
+			t.Fatalf("localBranchExists() = true, want false")
+		}
+	})
+
+	t.Run("gitリポジトリでない場合はエラー", func(t *testing.T) {
+		t.Parallel()
+
+		repoPath := t.TempDir()
+
+		_, err := localBranchExists(context.Background(), repoPath, "main")
+		if err == nil {
+			t.Fatalf("localBranchExists() error = nil, want error")
+		}
+	})
+}
+
 func createRepoWithMergedFeatureBranch(t *testing.T) (repoPath, defaultBranch, featureBranch string) {
 	t.Helper()
 
