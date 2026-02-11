@@ -1,8 +1,10 @@
 package updater
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -42,19 +44,33 @@ func (f *FwupdmgrUpdater) Check(ctx context.Context) (*CheckResult, error) {
 
 	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
 
-	output, err := cmd.CombinedOutput()
+	var stderr bytes.Buffer
+
+	cmd.Stderr = &stderr
+
+	output, err := cmd.Output()
 	if err != nil {
-		if isNoFwupdmgrUpdatesMessage(string(output)) {
+		stderrOutput := stderr.String()
+		if isNoFwupdmgrUpdatesMessage(stderrOutput) || isNoFwupdmgrUpdatesMessage(string(output)) {
 			return &CheckResult{
 				AvailableUpdates: 0,
 				Packages:         []PackageInfo{},
 			}, nil
 		}
 
-		return nil, fmt.Errorf("fwupdmgr get-updates の実行に失敗: %w", buildCommandOutputErr(err, output))
+		return nil, fmt.Errorf(
+			"fwupdmgr get-updates の実行に失敗: %w",
+			buildCommandOutputErr(err, combineCommandOutputs(output, stderr.Bytes())),
+		)
 	}
 
-	packages := f.parseGetUpdatesJSON(output)
+	packages, parseErr := f.parseGetUpdatesJSON(output)
+	if parseErr != nil {
+		return nil, fmt.Errorf(
+			"fwupdmgr get-updates の出力解析に失敗: %w",
+			buildCommandOutputErr(parseErr, combineCommandOutputs(output, stderr.Bytes())),
+		)
+	}
 
 	return &CheckResult{
 		AvailableUpdates: len(packages),
@@ -103,24 +119,24 @@ func (f *FwupdmgrUpdater) runUpdateCommand(ctx context.Context, checkResult *Che
 	return result, nil
 }
 
-func (f *FwupdmgrUpdater) parseGetUpdatesJSON(output []byte) []PackageInfo {
+func (f *FwupdmgrUpdater) parseGetUpdatesJSON(output []byte) ([]PackageInfo, error) {
 	if len(output) == 0 {
-		return nil
+		return nil, errors.New("fwupdmgr get-updates の出力が空です")
 	}
 
 	var payload map[string]interface{}
 	if err := json.Unmarshal(output, &payload); err != nil {
-		return nil
+		return nil, fmt.Errorf("JSON の解析に失敗: %w", err)
 	}
 
 	rawDevices, ok := lookupMapValueIgnoreCase(payload, "devices")
 	if !ok {
-		return nil
+		return nil, errors.New("devices キーが見つかりません")
 	}
 
 	devices, ok := rawDevices.([]interface{})
 	if !ok {
-		return nil
+		return nil, errors.New("devices の型が不正です")
 	}
 
 	packages := make([]PackageInfo, 0, len(devices))
@@ -153,7 +169,7 @@ func (f *FwupdmgrUpdater) parseGetUpdatesJSON(output []byte) []PackageInfo {
 		})
 	}
 
-	return packages
+	return packages, nil
 }
 
 func isNoFwupdmgrUpdatesMessage(output string) bool {

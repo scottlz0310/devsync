@@ -26,24 +26,35 @@ func TestFwupdmgrUpdater_Configure(t *testing.T) {
 
 func TestFwupdmgrUpdater_parseGetUpdatesJSON(t *testing.T) {
 	testCases := []struct {
-		name   string
-		output []byte
-		want   []PackageInfo
+		name        string
+		output      []byte
+		want        []PackageInfo
+		expectErr   bool
+		errContains string
 	}{
 		{
-			name:   "空出力",
-			output: nil,
-			want:   nil,
+			name:        "空出力はエラー",
+			output:      nil,
+			expectErr:   true,
+			errContains: "出力が空",
 		},
 		{
-			name:   "不正なJSON",
-			output: []byte("{invalid"),
-			want:   nil,
+			name:        "不正なJSONはエラー",
+			output:      []byte("{invalid"),
+			expectErr:   true,
+			errContains: "JSON の解析に失敗",
 		},
 		{
-			name:   "devicesキーがない",
-			output: []byte(`{"status":"ok"}`),
-			want:   nil,
+			name:        "devicesキーがない場合はエラー",
+			output:      []byte(`{"status":"ok"}`),
+			expectErr:   true,
+			errContains: "devices キーが見つかりません",
+		},
+		{
+			name:        "devicesの型が不正な場合はエラー",
+			output:      []byte(`{"devices":{"name":"not-array"}}`),
+			expectErr:   true,
+			errContains: "devices の型が不正",
 		},
 		{
 			name: "更新対象1件",
@@ -104,13 +115,19 @@ func TestFwupdmgrUpdater_parseGetUpdatesJSON(t *testing.T) {
 			t.Parallel()
 
 			f := &FwupdmgrUpdater{}
-			got := f.parseGetUpdatesJSON(tc.output)
+			got, err := f.parseGetUpdatesJSON(tc.output)
 
-			if tc.want == nil {
-				assert.Nil(t, got)
+			if tc.expectErr {
+				assert.Error(t, err)
+
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains)
+				}
+
 				return
 			}
 
+			assert.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
 	}
@@ -173,4 +190,50 @@ func TestBuildCommandOutputErr(t *testing.T) {
 		assert.ErrorIs(t, got, baseErr)
 		assert.Contains(t, got.Error(), "details")
 	})
+}
+
+func TestCombineCommandOutputs(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		stdout []byte
+		stderr []byte
+		want   []byte
+	}{
+		{
+			name:   "stdout/stderrとも空",
+			stdout: nil,
+			stderr: nil,
+			want:   nil,
+		},
+		{
+			name:   "stderrのみ",
+			stdout: nil,
+			stderr: []byte("error details\n"),
+			want:   []byte("error details"),
+		},
+		{
+			name:   "stdoutのみ",
+			stdout: []byte("json output\n"),
+			stderr: nil,
+			want:   []byte("json output"),
+		},
+		{
+			name:   "stdout/stderr両方",
+			stdout: []byte("json output\n"),
+			stderr: []byte("warning message\n"),
+			want:   []byte("json output\nwarning message"),
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := combineCommandOutputs(tc.stdout, tc.stderr)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
