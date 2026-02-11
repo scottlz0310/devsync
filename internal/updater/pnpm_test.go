@@ -106,9 +106,11 @@ func TestPnpmUpdater_parseOutdatedJSON(t *testing.T) {
 
 			if tt.expectErr {
 				assert.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
+
 				return
 			}
 

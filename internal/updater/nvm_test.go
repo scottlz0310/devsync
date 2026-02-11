@@ -73,9 +73,11 @@ func TestParseNvmCurrentVersion(t *testing.T) {
 			got, err := parseNvmCurrentVersion(tc.output)
 			if tc.expectErr {
 				assert.Error(t, err)
+
 				if tc.errContains != "" {
 					assert.Contains(t, err.Error(), tc.errContains)
 				}
+
 				return
 			}
 
@@ -186,9 +188,11 @@ func TestIsSemverLess(t *testing.T) {
 			got, err := isSemverLess(tc.left, tc.right)
 			if tc.expectErr {
 				assert.Error(t, err)
+
 				if tc.errContains != "" {
 					assert.Contains(t, err.Error(), tc.errContains)
 				}
+
 				return
 			}
 

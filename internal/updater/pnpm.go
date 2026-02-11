@@ -41,6 +41,7 @@ func (p *PnpmUpdater) Configure(cfg config.ManagerConfig) error {
 
 func (p *PnpmUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	cmd := exec.CommandContext(ctx, "pnpm", "outdated", "-g", "--format", "json")
+
 	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
 
 	var stderr bytes.Buffer
@@ -70,31 +71,29 @@ func (p *PnpmUpdater) Check(ctx context.Context) (*CheckResult, error) {
 }
 
 func (p *PnpmUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateResult, error) {
-	result := &UpdateResult{}
-
 	checkResult, err := p.Check(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	result := &UpdateResult{}
+
 	if checkResult.AvailableUpdates == 0 {
 		result.Message = "すべての pnpm グローバルパッケージは最新です"
+
 		return result, nil
 	}
 
 	if opts.DryRun {
 		result.Message = fmt.Sprintf("%d 件の pnpm グローバルパッケージが更新可能です（DryRunモード）", checkResult.AvailableUpdates)
 		result.Packages = checkResult.Packages
+
 		return result, nil
 	}
 
-	cmd := exec.CommandContext(ctx, "pnpm", "update", "-g")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	if err := cmd.Run(); err != nil {
+	if err := p.runUpdate(ctx); err != nil {
 		result.Errors = append(result.Errors, err)
+
 		return result, fmt.Errorf("pnpm update -g に失敗: %w", err)
 	}
 
@@ -103,6 +102,15 @@ func (p *PnpmUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRe
 	result.Message = fmt.Sprintf("%d 件の pnpm グローバルパッケージを更新しました", result.UpdatedCount)
 
 	return result, nil
+}
+
+func (p *PnpmUpdater) runUpdate(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, "pnpm", "update", "-g")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	return cmd.Run()
 }
 
 func isPnpmOutdatedExitErr(err error) bool {

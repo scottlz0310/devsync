@@ -13,7 +13,7 @@ import (
 	"github.com/scottlz0310/devsync/internal/config"
 )
 
-var semverPattern = regexp.MustCompile(`v?([0-9]+\.[0-9]+\.[0-9]+)`)
+var semverPattern = regexp.MustCompile(`v?(\d+\.\d+\.\d+)`)
 
 // NvmUpdater は nvm (Node.js バージョン管理) の実装です。
 type NvmUpdater struct{}
@@ -90,21 +90,23 @@ func (n *NvmUpdater) Check(ctx context.Context) (*CheckResult, error) {
 }
 
 func (n *NvmUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateResult, error) {
-	result := &UpdateResult{}
-
 	checkResult, err := n.Check(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	result := &UpdateResult{}
+
 	if checkResult.AvailableUpdates == 0 {
 		result.Message = "nvm 管理下の Node.js は最新です"
+
 		return result, nil
 	}
 
 	if opts.DryRun {
 		result.Message = fmt.Sprintf("%d 件の Node.js バージョン更新が可能です（DryRunモード）", checkResult.AvailableUpdates)
 		result.Packages = checkResult.Packages
+
 		return result, nil
 	}
 
@@ -116,6 +118,7 @@ func (n *NvmUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRes
 
 	if err := cmd.Run(); err != nil {
 		result.Errors = append(result.Errors, err)
+
 		return result, fmt.Errorf("nvm install %s に失敗: %w", targetVersion, err)
 	}
 
@@ -169,6 +172,7 @@ func (n *NvmUpdater) latestVersion(ctx context.Context) (string, error) {
 
 func (n *NvmUpdater) runCommandOutput(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "nvm", args...)
+
 	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
 
 	var stderr bytes.Buffer
@@ -279,6 +283,7 @@ func isSemverLess(left, right string) (bool, error) {
 
 func parseSemver(value string) ([3]int, error) {
 	normalized := strings.TrimPrefix(strings.TrimSpace(value), "v")
+
 	parts := strings.Split(normalized, ".")
 	if len(parts) != 3 {
 		return [3]int{}, fmt.Errorf("不正な semver 形式: %q", value)
