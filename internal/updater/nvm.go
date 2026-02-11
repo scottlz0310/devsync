@@ -17,6 +17,8 @@ import (
 
 var semverPattern = regexp.MustCompile(`v?(\d+\.\d+\.\d+)`)
 
+const windowsOS = "windows"
+
 // NvmUpdater は nvm (Node.js バージョン管理) の実装です。
 type NvmUpdater struct{}
 
@@ -34,7 +36,7 @@ func (n *NvmUpdater) DisplayName() string {
 }
 
 func (n *NvmUpdater) IsAvailable() bool {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == windowsOS {
 		_, err := exec.LookPath("nvm")
 		return err == nil
 	}
@@ -204,7 +206,7 @@ func (n *NvmUpdater) runCommandOutput(ctx context.Context, args ...string) (stri
 }
 
 func (n *NvmUpdater) buildCommand(ctx context.Context, args ...string) (*exec.Cmd, error) {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == windowsOS {
 		cmd := exec.CommandContext(ctx, "nvm", args...)
 
 		cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")

@@ -254,15 +254,18 @@ func TestNvmUpdater_Check(t *testing.T) {
 			writeFakeNvmCommand(t, fakeDir)
 
 			t.Setenv("PATH", fakeDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+			if runtime.GOOS != "windows" {
+				t.Setenv("NVM_DIR", fakeDir)
+			}
+
 			t.Setenv("DEVSYNC_TEST_NVM_MODE", tc.mode)
 
 			n := &NvmUpdater{}
 			got, err := n.Check(context.Background())
 
 			if tc.expectErr {
-				assert.Error(t, err)
-
-				if tc.errContains != "" {
+				if assert.Error(t, err) && tc.errContains != "" {
 					assert.Contains(t, err.Error(), tc.errContains)
 				}
 
@@ -313,6 +316,11 @@ func TestNvmUpdater_Update(t *testing.T) {
 			writeFakeNvmCommand(t, fakeDir)
 
 			t.Setenv("PATH", fakeDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+			if runtime.GOOS != "windows" {
+				t.Setenv("NVM_DIR", fakeDir)
+			}
+
 			t.Setenv("DEVSYNC_TEST_NVM_MODE", tc.mode)
 
 			n := &NvmUpdater{}
@@ -531,58 +539,60 @@ if "%cmd1%"=="install" (
 exit /b 0
 `
 	} else {
-		fileName = "nvm"
+		fileName = "nvm.sh"
 		content = `#!/bin/sh
-cmd1="$1"
-cmd2="$2"
-mode="${DEVSYNC_TEST_NVM_MODE}"
+nvm() {
+  cmd1="$1"
+  cmd2="$2"
+  mode="${DEVSYNC_TEST_NVM_MODE}"
 
-if [ "${cmd1}" = "current" ]; then
-  if [ "${mode}" = "invalid_current" ]; then
-    echo "not-a-version"
-    exit 0
+  if [ "${cmd1}" = "current" ]; then
+    if [ "${mode}" = "invalid_current" ]; then
+      echo "not-a-version"
+      return 0
+    fi
+    if [ "${mode}" = "current_none" ]; then
+      echo "none"
+      return 0
+    fi
+    if [ "${mode}" = "check_none" ]; then
+      echo "v22.11.0"
+      return 0
+    fi
+    echo "v20.10.0"
+    return 0
   fi
-  if [ "${mode}" = "current_none" ]; then
-    echo "none"
-    exit 0
+
+  if [ "${cmd1}" = "list" ] && [ "${cmd2}" = "available" ]; then
+    if [ "${mode}" = "latest_fail" ] || [ "${mode}" = "list_available_fail_remote_fallback" ]; then
+      echo "list failed" 1>&2
+      return 1
+    fi
+    echo "|   CURRENT    |     LTS      |"
+    echo "|    22.11.0   |    20.17.0   |"
+    return 0
   fi
-  if [ "${mode}" = "check_none" ]; then
+
+  if [ "${cmd1}" = "ls-remote" ]; then
+    if [ "${mode}" = "latest_fail" ]; then
+      echo "remote failed" 1>&2
+      return 1
+    fi
     echo "v22.11.0"
-    exit 0
+    return 0
   fi
-  echo "v20.10.0"
-  exit 0
-fi
 
-if [ "${cmd1}" = "list" ] && [ "${cmd2}" = "available" ]; then
-  if [ "${mode}" = "latest_fail" ] || [ "${mode}" = "list_available_fail_remote_fallback" ]; then
-    echo "list failed" 1>&2
-    exit 1
+  if [ "${cmd1}" = "install" ]; then
+    if [ "${mode}" = "install_fail" ]; then
+      echo "install failed" 1>&2
+      return 1
+    fi
+    echo "installed $2"
+    return 0
   fi
-  echo "|   CURRENT    |     LTS      |"
-  echo "|    22.11.0   |    20.17.0   |"
-  exit 0
-fi
 
-if [ "${cmd1}" = "ls-remote" ]; then
-  if [ "${mode}" = "latest_fail" ]; then
-    echo "remote failed" 1>&2
-    exit 1
-  fi
-  echo "v22.11.0"
-  exit 0
-fi
-
-if [ "${cmd1}" = "install" ]; then
-  if [ "${mode}" = "install_fail" ]; then
-    echo "install failed" 1>&2
-    exit 1
-  fi
-  echo "installed $2"
-  exit 0
-fi
-
-exit 0
+  return 0
+}
 `
 	}
 
