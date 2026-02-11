@@ -225,5 +225,3 @@ func extractReleaseVersion(raw interface{}) string {
 
 	return lookupMapStringIgnoreCase(release, "version")
 }
-
-var _ Updater = (*FwupdmgrUpdater)(nil)

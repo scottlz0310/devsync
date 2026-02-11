@@ -44,11 +44,11 @@ var sysUpdateCmd = &cobra.Command{
   - brew      (macOS/Linux Homebrew)
   - go        (Go ツール)
   - npm       (Node.js グローバルパッケージ)
-  - pipx      (Python CLI ツール)
-  - cargo     (Rust ツール)
   - snap      (Ubuntu Snap パッケージ)
   - flatpak   (Linux Flatpak)
   - fwupdmgr  (Linux Firmware)
+  - pipx      (Python CLI ツール)
+  - cargo     (Rust ツール)
 
 例:
   devsync sys update           # 設定に基づいて更新
