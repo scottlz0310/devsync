@@ -55,9 +55,11 @@ func (f *FlatpakUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	args := f.buildCommandArgs("remote-ls", "--updates", "--columns=application,version")
 	cmd := exec.CommandContext(ctx, "flatpak", args...)
 
-	output, err := cmd.Output()
+	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
+
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("flatpak remote-ls --updates の実行に失敗: %w", err)
+		return nil, fmt.Errorf("flatpak remote-ls --updates の実行に失敗: %w", buildCommandOutputErr(err, output))
 	}
 
 	packages := f.parseRemoteLSOutput(string(output))

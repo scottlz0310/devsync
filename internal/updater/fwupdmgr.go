@@ -40,6 +40,8 @@ func (f *FwupdmgrUpdater) Configure(cfg config.ManagerConfig) error {
 func (f *FwupdmgrUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	cmd := exec.CommandContext(ctx, "fwupdmgr", "get-updates", "--json")
 
+	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		if isNoFwupdmgrUpdatesMessage(string(output)) {
@@ -49,7 +51,7 @@ func (f *FwupdmgrUpdater) Check(ctx context.Context) (*CheckResult, error) {
 			}, nil
 		}
 
-		return nil, fmt.Errorf("fwupdmgr get-updates の実行に失敗: %w", buildFwupdmgrOutputErr(err, output))
+		return nil, fmt.Errorf("fwupdmgr get-updates の実行に失敗: %w", buildCommandOutputErr(err, output))
 	}
 
 	packages := f.parseGetUpdatesJSON(output)
@@ -152,15 +154,6 @@ func (f *FwupdmgrUpdater) parseGetUpdatesJSON(output []byte) []PackageInfo {
 	}
 
 	return packages
-}
-
-func buildFwupdmgrOutputErr(baseErr error, output []byte) error {
-	trimmed := strings.TrimSpace(string(output))
-	if trimmed == "" {
-		return baseErr
-	}
-
-	return fmt.Errorf("%w: %s", baseErr, trimmed)
 }
 
 func isNoFwupdmgrUpdatesMessage(output string) bool {

@@ -155,13 +155,13 @@ func TestIsNoFwupdmgrUpdatesMessage(t *testing.T) {
 	}
 }
 
-func TestBuildFwupdmgrOutputErr(t *testing.T) {
+func TestBuildCommandOutputErr(t *testing.T) {
 	baseErr := errors.New("base error")
 
 	t.Run("出力なしは元エラーを返す", func(t *testing.T) {
 		t.Parallel()
 
-		got := buildFwupdmgrOutputErr(baseErr, nil)
+		got := buildCommandOutputErr(baseErr, nil)
 		assert.ErrorIs(t, got, baseErr)
 		assert.Equal(t, "base error", got.Error())
 	})
@@ -169,7 +169,7 @@ func TestBuildFwupdmgrOutputErr(t *testing.T) {
 	t.Run("出力ありはメッセージを連結", func(t *testing.T) {
 		t.Parallel()
 
-		got := buildFwupdmgrOutputErr(baseErr, []byte("details"))
+		got := buildCommandOutputErr(baseErr, []byte("details"))
 		assert.ErrorIs(t, got, baseErr)
 		assert.Contains(t, got.Error(), "details")
 	})
