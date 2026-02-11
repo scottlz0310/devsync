@@ -1,6 +1,10 @@
 package updater
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/scottlz0310/devsync/internal/config"
@@ -72,9 +76,7 @@ func TestParseNvmCurrentVersion(t *testing.T) {
 
 			got, err := parseNvmCurrentVersion(tc.output)
 			if tc.expectErr {
-				assert.Error(t, err)
-
-				if tc.errContains != "" {
+				if assert.Error(t, err) && tc.errContains != "" {
 					assert.Contains(t, err.Error(), tc.errContains)
 				}
 
@@ -199,5 +201,280 @@ func TestIsSemverLess(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
+	}
+}
+
+func TestNvmUpdater_Check(t *testing.T) {
+	testCases := []struct {
+		name        string
+		mode        string
+		wantCount   int
+		expectErr   bool
+		errContains string
+	}{
+		{
+			name:      "更新候補あり",
+			mode:      "check_update",
+			wantCount: 1,
+		},
+		{
+			name:      "最新状態",
+			mode:      "check_none",
+			wantCount: 0,
+		},
+		{
+			name:      "current=none は導入提案",
+			mode:      "current_none",
+			wantCount: 1,
+		},
+		{
+			name:      "list available 失敗時は ls-remote にフォールバック",
+			mode:      "list_available_fail_remote_fallback",
+			wantCount: 1,
+		},
+		{
+			name:        "current が不正形式ならエラー",
+			mode:        "invalid_current",
+			expectErr:   true,
+			errContains: "出力解析に失敗",
+		},
+		{
+			name:        "最新バージョンの取得失敗",
+			mode:        "latest_fail",
+			expectErr:   true,
+			errContains: "最新 Node.js バージョンの取得に失敗",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			fakeDir := t.TempDir()
+			writeFakeNvmCommand(t, fakeDir)
+
+			t.Setenv("PATH", fakeDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("DEVSYNC_TEST_NVM_MODE", tc.mode)
+
+			n := &NvmUpdater{}
+			got, err := n.Check(context.Background())
+
+			if tc.expectErr {
+				assert.Error(t, err)
+
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains)
+				}
+
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantCount, got.AvailableUpdates)
+		})
+	}
+}
+
+func TestNvmUpdater_Update(t *testing.T) {
+	testCases := []struct {
+		name        string
+		mode        string
+		opts        UpdateOptions
+		expectErr   bool
+		errContains string
+		wantUpdated int
+		wantDryRun  bool
+	}{
+		{
+			name:       "DryRunは計画のみ返す",
+			mode:       "check_update",
+			opts:       UpdateOptions{DryRun: true},
+			wantDryRun: true,
+		},
+		{
+			name:        "通常更新成功",
+			mode:        "check_update",
+			opts:        UpdateOptions{},
+			wantUpdated: 1,
+		},
+		{
+			name:        "事前チェック失敗",
+			mode:        "latest_fail",
+			opts:        UpdateOptions{},
+			expectErr:   true,
+			errContains: "最新 Node.js バージョンの取得に失敗",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			fakeDir := t.TempDir()
+			writeFakeNvmCommand(t, fakeDir)
+
+			t.Setenv("PATH", fakeDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("DEVSYNC_TEST_NVM_MODE", tc.mode)
+
+			n := &NvmUpdater{}
+			got, err := n.Update(context.Background(), tc.opts)
+
+			if tc.expectErr {
+				if assert.Error(t, err) && tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains)
+				}
+
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantUpdated, got.UpdatedCount)
+
+			if tc.wantDryRun {
+				assert.Contains(t, got.Message, "DryRun")
+				return
+			}
+
+			assert.Contains(t, got.Message, "インストールしました")
+		})
+	}
+}
+
+func writeFakeNvmCommand(t *testing.T, dir string) {
+	t.Helper()
+
+	var (
+		fileName string
+		content  string
+	)
+
+	if runtime.GOOS == "windows" {
+		fileName = "nvm.cmd"
+		content = `@echo off
+set cmd1=%1
+set cmd2=%2
+set mode=%DEVSYNC_TEST_NVM_MODE%
+
+if "%cmd1%"=="current" (
+  if "%mode%"=="invalid_current" (
+    echo not-a-version
+    exit /b 0
+  )
+  if "%mode%"=="current_none" (
+    echo none
+    exit /b 0
+  )
+  if "%mode%"=="check_none" (
+    echo v22.11.0
+    exit /b 0
+  )
+  echo v20.10.0
+  exit /b 0
+)
+
+if "%cmd1%"=="list" (
+  if "%cmd2%"=="available" (
+    if "%mode%"=="latest_fail" (
+      >&2 echo list failed
+      exit /b 1
+    )
+    if "%mode%"=="list_available_fail_remote_fallback" (
+      >&2 echo list failed
+      exit /b 1
+    )
+    if "%mode%"=="check_none" (
+      echo ^|   CURRENT    ^|     LTS      ^|
+      echo ^|    22.11.0   ^|    20.17.0   ^|
+      exit /b 0
+    )
+    echo ^|   CURRENT    ^|     LTS      ^|
+    echo ^|    22.11.0   ^|    20.17.0   ^|
+    exit /b 0
+  )
+)
+
+if "%cmd1%"=="ls-remote" (
+  if "%mode%"=="latest_fail" (
+    >&2 echo remote failed
+    exit /b 1
+  )
+  echo v22.11.0
+  exit /b 0
+)
+
+if "%cmd1%"=="install" (
+  if "%mode%"=="install_fail" (
+    >&2 echo install failed
+    exit /b 1
+  )
+  echo installed %2
+  exit /b 0
+)
+
+exit /b 0
+`
+	} else {
+		fileName = "nvm"
+		content = `#!/bin/sh
+cmd1="$1"
+cmd2="$2"
+mode="${DEVSYNC_TEST_NVM_MODE}"
+
+if [ "${cmd1}" = "current" ]; then
+  if [ "${mode}" = "invalid_current" ]; then
+    echo "not-a-version"
+    exit 0
+  fi
+  if [ "${mode}" = "current_none" ]; then
+    echo "none"
+    exit 0
+  fi
+  if [ "${mode}" = "check_none" ]; then
+    echo "v22.11.0"
+    exit 0
+  fi
+  echo "v20.10.0"
+  exit 0
+fi
+
+if [ "${cmd1}" = "list" ] && [ "${cmd2}" = "available" ]; then
+  if [ "${mode}" = "latest_fail" ] || [ "${mode}" = "list_available_fail_remote_fallback" ]; then
+    echo "list failed" 1>&2
+    exit 1
+  fi
+  echo "|   CURRENT    |     LTS      |"
+  echo "|    22.11.0   |    20.17.0   |"
+  exit 0
+fi
+
+if [ "${cmd1}" = "ls-remote" ]; then
+  if [ "${mode}" = "latest_fail" ]; then
+    echo "remote failed" 1>&2
+    exit 1
+  fi
+  echo "v22.11.0"
+  exit 0
+fi
+
+if [ "${cmd1}" = "install" ]; then
+  if [ "${mode}" = "install_fail" ]; then
+    echo "install failed" 1>&2
+    exit 1
+  fi
+  echo "installed $2"
+  exit 0
+fi
+
+exit 0
+`
+	}
+
+	fullPath := filepath.Join(dir, fileName)
+	if writeErr := os.WriteFile(fullPath, []byte(content), 0o755); writeErr != nil {
+		t.Fatalf("fake command write failed: %v", writeErr)
+	}
+
+	if runtime.GOOS != "windows" {
+		if chmodErr := os.Chmod(fullPath, 0o755); chmodErr != nil {
+			t.Fatalf("fake command chmod failed: %v", chmodErr)
+		}
 	}
 }
