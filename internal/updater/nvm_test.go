@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/scottlz0310/devsync/internal/config"
+	"github.com/scottlz0310/devsync/internal/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -335,6 +336,124 @@ func TestNvmUpdater_Update(t *testing.T) {
 
 			assert.Contains(t, got.Message, "インストールしました")
 		})
+	}
+}
+
+func TestBuildUnixNvmCommand(t *testing.T) {
+	t.Parallel()
+
+	got := buildUnixNvmCommand("/home/user/.nvm/nvm.sh", "install", "v20.11.1")
+	want := ". '/home/user/.nvm/nvm.sh' >/dev/null 2>&1 && nvm 'install' 'v20.11.1'"
+	assert.Equal(t, want, got)
+}
+
+func TestQuotePosixShellArg(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{
+			name:  "空文字",
+			value: "",
+			want:  "''",
+		},
+		{
+			name:  "通常文字列",
+			value: "nvm.sh",
+			want:  "'nvm.sh'",
+		},
+		{
+			name:  "シングルクォートを含む",
+			value: "O'Brien",
+			want:  `'O'\''Brien'`,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := quotePosixShellArg(tc.value)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestResolveNvmScriptPath(t *testing.T) {
+	testCases := []struct {
+		name      string
+		setup     func(t *testing.T) string
+		expectErr bool
+	}{
+		{
+			name: "NVM_DIR が優先される",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				scriptPath := filepath.Join(dir, "nvm.sh")
+
+				testutil.SetTestHome(t, t.TempDir())
+				t.Setenv("NVM_DIR", dir)
+
+				writeNvmScriptForTest(t, scriptPath)
+
+				return scriptPath
+			},
+		},
+		{
+			name: "HOME/.nvm にフォールバック",
+			setup: func(t *testing.T) string {
+				home := t.TempDir()
+				testutil.SetTestHome(t, home)
+				t.Setenv("NVM_DIR", "")
+
+				scriptPath := filepath.Join(home, ".nvm", "nvm.sh")
+				writeNvmScriptForTest(t, scriptPath)
+
+				return scriptPath
+			},
+		},
+		{
+			name: "見つからない場合はエラー",
+			setup: func(t *testing.T) string {
+				testutil.SetTestHome(t, t.TempDir())
+				t.Setenv("NVM_DIR", "")
+
+				return ""
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			want := tc.setup(t)
+
+			got, err := resolveNvmScriptPath()
+			if tc.expectErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
+func writeNvmScriptForTest(t *testing.T, scriptPath string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Dir(scriptPath), 0o755); err != nil {
+		t.Fatalf("failed to create nvm script dir: %v", err)
+	}
+
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("failed to write nvm script: %v", err)
 	}
 }
 

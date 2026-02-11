@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -32,7 +34,13 @@ func (n *NvmUpdater) DisplayName() string {
 }
 
 func (n *NvmUpdater) IsAvailable() bool {
-	_, err := exec.LookPath("nvm")
+	if runtime.GOOS == "windows" {
+		_, err := exec.LookPath("nvm")
+		return err == nil
+	}
+
+	_, _, err := n.resolveUnixNvmRuntime()
+
 	return err == nil
 }
 
@@ -111,7 +119,14 @@ func (n *NvmUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateRes
 	}
 
 	targetVersion := checkResult.Packages[0].NewVersion
-	cmd := exec.CommandContext(ctx, "nvm", "install", targetVersion)
+
+	cmd, err := n.buildCommand(ctx, "install", targetVersion)
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+
+		return result, fmt.Errorf("nvm install %s の準備に失敗: %w", targetVersion, err)
+	}
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -171,9 +186,10 @@ func (n *NvmUpdater) latestVersion(ctx context.Context) (string, error) {
 }
 
 func (n *NvmUpdater) runCommandOutput(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "nvm", args...)
-
-	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
+	cmd, err := n.buildCommand(ctx, args...)
+	if err != nil {
+		return "", err
+	}
 
 	var stderr bytes.Buffer
 
@@ -185,6 +201,102 @@ func (n *NvmUpdater) runCommandOutput(ctx context.Context, args ...string) (stri
 	}
 
 	return string(output), nil
+}
+
+func (n *NvmUpdater) buildCommand(ctx context.Context, args ...string) (*exec.Cmd, error) {
+	if runtime.GOOS == "windows" {
+		cmd := exec.CommandContext(ctx, "nvm", args...)
+
+		cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
+
+		return cmd, nil
+	}
+
+	shell, nvmScript, err := n.resolveUnixNvmRuntime()
+	if err != nil {
+		return nil, err
+	}
+
+	commandText := buildUnixNvmCommand(nvmScript, args...)
+	cmd := exec.CommandContext(ctx, shell, "-lc", commandText)
+
+	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
+
+	return cmd, nil
+}
+
+func (n *NvmUpdater) resolveUnixNvmRuntime() (shell, nvmScript string, err error) {
+	shell, err = lookupFirstExecutable("bash", "zsh", "sh")
+	if err != nil {
+		return "", "", fmt.Errorf("nvm 実行用シェルが見つかりません: %w", err)
+	}
+
+	nvmScript, err = resolveNvmScriptPath()
+	if err != nil {
+		return "", "", err
+	}
+
+	return shell, nvmScript, nil
+}
+
+func lookupFirstExecutable(candidates ...string) (string, error) {
+	for _, candidate := range candidates {
+		if _, err := exec.LookPath(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("利用可能な実行ファイルがありません: %v", candidates)
+}
+
+func resolveNvmScriptPath() (string, error) {
+	candidates := make([]string, 0, 2)
+
+	if nvmDir := strings.TrimSpace(os.Getenv("NVM_DIR")); nvmDir != "" {
+		candidates = append(candidates, filepath.Join(nvmDir, "nvm.sh"))
+	}
+
+	home, err := os.UserHomeDir()
+	if err == nil && strings.TrimSpace(home) != "" {
+		candidates = append(candidates, filepath.Join(home, ".nvm", "nvm.sh"))
+	}
+
+	for _, candidate := range candidates {
+		info, statErr := os.Stat(candidate)
+		if statErr != nil {
+			continue
+		}
+
+		if info.IsDir() {
+			continue
+		}
+
+		return candidate, nil
+	}
+
+	return "", fmt.Errorf("nvm.sh が見つかりません（NVM_DIR または ~/.nvm）")
+}
+
+func buildUnixNvmCommand(nvmScript string, args ...string) string {
+	quotedArgs := make([]string, 0, len(args))
+	for _, arg := range args {
+		quotedArgs = append(quotedArgs, quotePosixShellArg(arg))
+	}
+
+	command := "nvm"
+	if len(quotedArgs) > 0 {
+		command += " " + strings.Join(quotedArgs, " ")
+	}
+
+	return fmt.Sprintf(". %s >/dev/null 2>&1 && %s", quotePosixShellArg(nvmScript), command)
+}
+
+func quotePosixShellArg(value string) string {
+	if value == "" {
+		return "''"
+	}
+
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
 
 func parseNvmCurrentVersion(output string) (string, error) {
