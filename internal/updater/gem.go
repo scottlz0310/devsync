@@ -1,10 +1,8 @@
 package updater
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -38,20 +36,9 @@ func (g *GemUpdater) Configure(cfg config.ManagerConfig) error {
 }
 
 func (g *GemUpdater) Check(ctx context.Context) (*CheckResult, error) {
-	cmd := exec.CommandContext(ctx, "gem", "outdated")
-
-	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
-
-	var stderr bytes.Buffer
-
-	cmd.Stderr = &stderr
-
-	output, err := cmd.Output()
+	output, err := runCommandOutputWithLocaleC(ctx, "gem", []string{"outdated"}, "gem outdated の実行に失敗: %w")
 	if err != nil {
-		return nil, fmt.Errorf(
-			"gem outdated の実行に失敗: %w",
-			buildCommandOutputErr(err, combineCommandOutputs(output, stderr.Bytes())),
-		)
+		return nil, err
 	}
 
 	packages := g.parseOutdatedOutput(string(output))

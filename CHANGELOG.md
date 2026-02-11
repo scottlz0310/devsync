@@ -15,7 +15,7 @@
 - `repo cleanup` を追加（マージ済みローカルブランチの整理、squashed 判定対応）
 - `sys update` の対応マネージャに `flatpak` / `fwupdmgr` を追加
 - `sys update` の対応マネージャに `pnpm` / `nvm` を追加
-- `sys update` の対応マネージャに `uv tool` / `rustup` / `gem` を追加
+- `sys update` の対応マネージャに `uv` / `rustup` / `gem` を追加
 
 ### Changed
 

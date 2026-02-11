@@ -123,6 +123,13 @@ func TestRustupUpdater_Check(t *testing.T) {
 			wantErr:     true,
 			errContains: "rustup check の実行に失敗",
 		},
+		{
+			name:        "check失敗時にstderrを含む",
+			mode:        "check_error",
+			wantUpdates: 0,
+			wantErr:     true,
+			errContains: "rustup check stderr",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -249,7 +256,7 @@ if "%1"=="update" goto update
 exit /b 1
 :check
 if "%mode%"=="check_error" (
-  echo rustup check failed
+  >&2 echo rustup check stderr
   exit /b 1
 )
 if "%mode%"=="none" (
@@ -273,7 +280,7 @@ exit /b 0
 mode="${DEVSYNC_TEST_RUSTUP_MODE}"
 if [ "$1" = "check" ]; then
   if [ "${mode}" = "check_error" ]; then
-    echo "rustup check failed"
+    echo "rustup check stderr" 1>&2
     exit 1
   fi
   if [ "${mode}" = "none" ]; then

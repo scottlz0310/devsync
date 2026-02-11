@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -39,9 +40,16 @@ func (u *UVUpdater) Configure(cfg config.ManagerConfig) error {
 func (u *UVUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	cmd := exec.CommandContext(ctx, "uv", "tool", "list")
 
+	var stderr bytes.Buffer
+
+	cmd.Stderr = &stderr
+
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("uv tool list の実行に失敗: %w", buildCommandOutputErr(err, output))
+		return nil, fmt.Errorf(
+			"uv tool list の実行に失敗: %w",
+			buildCommandOutputErr(err, combineCommandOutputs(output, stderr.Bytes())),
+		)
 	}
 
 	packages := u.parseToolListOutput(string(output))
@@ -151,25 +159,4 @@ func parseToolLine(line string) (name, version string, ok bool) {
 	}
 
 	return name, version, true
-}
-
-func looksLikeVersionToken(token string) bool {
-	if token == "" {
-		return false
-	}
-
-	hasDigit := false
-	for _, r := range token {
-		switch {
-		case r >= '0' && r <= '9':
-			hasDigit = true
-		case r >= 'a' && r <= 'z':
-		case r >= 'A' && r <= 'Z':
-		case r == '.', r == '-', r == '_', r == '+':
-		default:
-			return false
-		}
-	}
-
-	return hasDigit
 }

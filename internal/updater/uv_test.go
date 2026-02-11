@@ -114,6 +114,13 @@ func TestUVUpdater_Check(t *testing.T) {
 			wantErr:     true,
 			errContains: "uv tool list の実行に失敗",
 		},
+		{
+			name:        "check失敗時にstderrを含む",
+			mode:        "list_error",
+			wantUpdates: 0,
+			wantErr:     true,
+			errContains: "uv tool list stderr",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -240,7 +247,7 @@ if "%1"=="tool" if "%2"=="upgrade" goto upgrade
 exit /b 1
 :list
 if "%mode%"=="list_error" (
-  echo uv tool list failed
+  >&2 echo uv tool list stderr
   exit /b 1
 )
 if "%mode%"=="none" (
@@ -265,7 +272,7 @@ exit /b 0
 mode="${DEVSYNC_TEST_UV_MODE}"
 if [ "$1" = "tool" ] && [ "$2" = "list" ]; then
   if [ "${mode}" = "list_error" ]; then
-    echo "uv tool list failed"
+    echo "uv tool list stderr" 1>&2
     exit 1
   fi
   if [ "${mode}" = "none" ]; then

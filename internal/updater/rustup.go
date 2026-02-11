@@ -3,7 +3,6 @@ package updater
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -37,13 +36,9 @@ func (r *RustupUpdater) Configure(cfg config.ManagerConfig) error {
 }
 
 func (r *RustupUpdater) Check(ctx context.Context) (*CheckResult, error) {
-	cmd := exec.CommandContext(ctx, "rustup", "check")
-
-	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
-
-	output, err := cmd.Output()
+	output, err := runCommandOutputWithLocaleC(ctx, "rustup", []string{"check"}, "rustup check の実行に失敗: %w")
 	if err != nil {
-		return nil, fmt.Errorf("rustup check の実行に失敗: %w", buildCommandOutputErr(err, output))
+		return nil, err
 	}
 
 	packages := r.parseCheckOutput(string(output))
