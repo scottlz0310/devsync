@@ -41,7 +41,7 @@ func (u *UVUpdater) Check(ctx context.Context) (*CheckResult, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("uv tool list の実行に失敗: %w", err)
+		return nil, fmt.Errorf("uv tool list の実行に失敗: %w", buildCommandOutputErr(err, output))
 	}
 
 	packages := u.parseToolListOutput(string(output))
