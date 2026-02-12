@@ -39,12 +39,10 @@ func (w *WingetUpdater) Configure(cfg config.ManagerConfig) error {
 func (w *WingetUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	cmd := exec.CommandContext(ctx, "winget", "upgrade", "--include-unknown", "--disable-interactivity", "--accept-source-agreements")
 
-	// stderr も含めた出力を取得することで、エラー時の診断情報を失わないようにする
+	// stderr も含めた出力を取得することで、エラー時の診断情報を失わないようにする。
+	// winget はアップグレード可能なパッケージがある場合も exit code 0 以外を返すことがあるため、
+	// まずは出力をパースしてみて、アップグレード候補が取得できるかを確認する。
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// winget はアップグレード可能なパッケージがある場合も exit code 0 以外を返すことがあるため、
-		// まずは出力をパースしてみて、アップグレード候補が取得できるかを確認する。
-	}
 
 	packages := w.parseUpgradeOutput(string(output))
 
