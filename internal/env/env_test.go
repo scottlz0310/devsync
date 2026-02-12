@@ -2,6 +2,8 @@ package env
 
 import (
 	"os"
+	"os/exec"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -61,6 +63,22 @@ func TestGetRecommendedManagers(t *testing.T) {
 		// コンテナ環境でDebian系ならaptも含まれる
 		if _, err := os.Stat("/usr/bin/apt-get"); err == nil {
 			assert.Contains(t, managers, "apt")
+		}
+	})
+
+	t.Run("Windows環境ではwingetまたはscoopが含まれうる", func(t *testing.T) {
+		if runtime.GOOS != "windows" {
+			t.Skip("Windows環境でのみ実行")
+		}
+
+		managers := GetRecommendedManagers()
+		// winget または scoop がインストールされていれば含まれる
+		if _, err := exec.LookPath("winget"); err == nil {
+			assert.Contains(t, managers, "winget")
+		}
+
+		if _, err := exec.LookPath("scoop"); err == nil {
+			assert.Contains(t, managers, "scoop")
 		}
 	})
 }

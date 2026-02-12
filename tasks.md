@@ -137,7 +137,7 @@
     - [x] Linux向け `flatpak` / `fwupdmgr` Updater の実装
     - [x] Node系 `pnpm` / `nvm` Updater の実装
     - [x] 追加ツール `uv tool` / `rustup` / `gem` Updater の実装
-    - [ ] Windows向け `winget` / `scoop` Updater の実装と実機検証
+    - [x] Windows向け `winget` / `scoop` Updater の実装と実機検証
     - [x] `sys list` / `README.md` / `config init` への反映
     - [ ] 各Updaterの dry-run / timeout / エラー分類の統合テスト
 - [ ] 通知機能の実装
@@ -145,7 +145,7 @@
 - [x] 環境変数読み込み前に `bw sync` を実行してキャッシュを最新化（Issue #47）
 - [x] Linux 環境で TUI 使用時の表示崩れを修正（TUI 前後の stdout 出力抑制）（Issue #47）
 - [x] `sys update --tui` / `repo update --tui` で TUI 完了後のサマリー・完了メッセージ二重表示を修正
-- [ ] Windows (Winget/Scoop) 対応検証
+- [x] Windows (Winget/Scoop) 対応検証
 - [ ] GoReleaser によるリリース自動化
 - [ ] GitHub Actions CI/CD 設定
 - [ ] `sys update` / `repo update` の E2E テスト整備
