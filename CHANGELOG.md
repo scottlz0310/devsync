@@ -19,6 +19,8 @@
 
 ### Changed
 
+- `repo update` のリポジトリ安全性チェック（isDirty/hasStash/isDetachedHEAD）を並列実行に変更し、リポジトリあたりの待ち時間を削減
+- `repo update` の安全性チェックと upstream 確認を fetch 完了後に並列実行するよう改善
 - `README.md` に Alpha の既知の制約、`setup-repo` 併用の推奨運用、復旧手順（`config init` 再実行 / `repo.root` 見直し）を追記
 - `README.md` に `setup-repo` との比較手動チェック（移行期間の確認観点）を追記
 - `README.md` にアンインストール手順を追記
