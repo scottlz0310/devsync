@@ -1020,6 +1020,7 @@ devsync-load-env() {
   fi
 
   eval "$env_output"
+  export DEVSYNC_ENV_LOADED=1
 }
 
 # dev-sync 互換関数（参考実装との互換性）
@@ -1096,6 +1097,7 @@ devsync-load-env() {
   fi
 
   eval "$env_output"
+  export DEVSYNC_ENV_LOADED=1
 }
 
 # dev-sync 互換関数（参考実装との互換性）
@@ -1183,6 +1185,7 @@ function devsync-load-env {
     return $false
   }
 
+  $env:DEVSYNC_ENV_LOADED = "1"
   return $true
 }
 
