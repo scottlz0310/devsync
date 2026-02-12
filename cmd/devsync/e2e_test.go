@@ -88,7 +88,6 @@ func TestSysUpdate_NoManagers_ExitZero(t *testing.T) {
 	setupEmptyConfig(t)
 
 	stdout, _, err := executeRootCommand(t, "sys", "update")
-
 	if err != nil {
 		t.Fatalf("sys update with no managers should exit 0, got error: %v", err)
 	}
@@ -103,7 +102,6 @@ func TestSysUpdate_TUIFlagOnNonTTY_FallbackWithWarning(t *testing.T) {
 
 	// パイプ経由実行のため、stdout/stderr は非TTY
 	_, stderr, err := executeRootCommand(t, "sys", "update", "--tui")
-
 	if err != nil {
 		t.Fatalf("sys update --tui on non-TTY should exit 0, got error: %v", err)
 	}
@@ -117,7 +115,6 @@ func TestSysUpdate_NoTUIFlag(t *testing.T) {
 	setupEmptyConfig(t)
 
 	stdout, stderr, err := executeRootCommand(t, "sys", "update", "--no-tui")
-
 	if err != nil {
 		t.Fatalf("sys update --no-tui should exit 0, got error: %v", err)
 	}
@@ -137,7 +134,6 @@ func TestSysUpdate_ConflictingFlags_Error(t *testing.T) {
 	setupEmptyConfig(t)
 
 	_, stderr, err := executeRootCommand(t, "sys", "update", "--tui", "--no-tui")
-
 	if err == nil {
 		t.Fatal("sys update --tui --no-tui should return error, got nil")
 	}
@@ -153,7 +149,6 @@ func TestSysUpdate_DryRun(t *testing.T) {
 	setupEmptyConfig(t)
 
 	stdout, _, err := executeRootCommand(t, "sys", "update", "--dry-run")
-
 	if err != nil {
 		t.Fatalf("sys update --dry-run should exit 0, got error: %v", err)
 	}
@@ -176,7 +171,6 @@ func TestRepoUpdate_NoRepos_ExitZero(t *testing.T) {
 	}
 
 	stdout, _, err := executeRootCommand(t, "repo", "update", "--root", emptyRoot)
-
 	if err != nil {
 		t.Fatalf("repo update with no repos should exit 0, got error: %v", err)
 	}
@@ -193,7 +187,6 @@ func TestRepoUpdate_TUIFlagOnNonTTY_FallbackWithWarning(t *testing.T) {
 	}
 
 	_, stderr, err := executeRootCommand(t, "repo", "update", "--root", emptyRoot, "--tui")
-
 	if err != nil {
 		t.Fatalf("repo update --tui on non-TTY should exit 0, got error: %v", err)
 	}
@@ -212,7 +205,6 @@ func TestRepoUpdate_ConflictingFlags_Error(t *testing.T) {
 	}
 
 	_, _, err := executeRootCommand(t, "repo", "update", "--root", emptyRoot, "--tui", "--no-tui")
-
 	if err == nil {
 		t.Fatal("repo update --tui --no-tui should return error, got nil")
 	}
