@@ -161,7 +161,7 @@ func (s *ScoopUpdater) parseStatusOutput(output string) []PackageInfo {
 func findScoopTableHeader(lines []string) (headerIdx, separatorIdx int) {
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if len(trimmed) == 0 {
+		if trimmed == "" {
 			continue
 		}
 

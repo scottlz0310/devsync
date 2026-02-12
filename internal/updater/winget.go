@@ -161,6 +161,7 @@ func (w *WingetUpdater) parseUpgradeOutput(output string) []PackageInfo {
 // splitLines は出力を行ごとに分割し、プログレスバー等のゴミを除去します。
 func splitLines(output string) []string {
 	scanner := bufio.NewScanner(strings.NewReader(output))
+
 	var lines []string
 
 	for scanner.Scan() {
@@ -192,7 +193,7 @@ func containsProgressChars(s string) bool {
 func findTableHeader(lines []string) (headerIdx, separatorIdx int) {
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if len(trimmed) == 0 {
+		if trimmed == "" {
 			continue
 		}
 		// ダッシュのみで構成された行を検出（最低10文字）
@@ -344,12 +345,12 @@ func detectColumnPositions(header string) []int {
 // isSummaryLine はサマリー行（末尾の集計行）かどうかを判定します。
 func isSummaryLine(line string) bool {
 	trimmed := strings.TrimSpace(line)
-	if len(trimmed) == 0 {
+	if trimmed == "" {
 		return false
 	}
 
 	// 数字で始まるサマリー行を検出
-	if len(trimmed) > 0 && unicode.IsDigit(rune(trimmed[0])) {
+	if unicode.IsDigit(rune(trimmed[0])) {
 		lower := strings.ToLower(trimmed)
 		if strings.Contains(lower, "upgrade") || strings.Contains(lower, "アップグレード") {
 			return true
