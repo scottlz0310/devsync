@@ -85,9 +85,6 @@ func init() {
 }
 
 func runSysUpdate(cmd *cobra.Command, args []string) error {
-	fmt.Println("🔄 システムパッケージの更新を開始します...")
-	fmt.Println()
-
 	// 設定の読み込み
 	cfg, opts := loadSysUpdateConfig(cmd)
 
@@ -117,6 +114,12 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// TUI 使用時は開始メッセージを抑制（TUI が画面を制御するため）
+	if !useTUI {
+		fmt.Println("🔄 システムパッケージの更新を開始します...")
+		fmt.Println()
+	}
+
 	printSysUpdateDryRunNotice(opts.DryRun)
 
 	jobs := resolveSysJobs(cfg.Control.Concurrency, sysJobs)
@@ -124,37 +127,9 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 
 	printSysUpdateTUIEnabledNotice(useTUI)
 
-	var stats updateStats
-
-	if len(exclusiveUpdaters) > 0 {
-		if phaseRequiresSudo(exclusiveUpdaters, cfg.Sys.Managers) {
-			if err := ensureSudoAuthentication(ctx, "単独実行フェーズ"); err != nil {
-				return err
-			}
-
-			fmt.Println()
-		}
-
-		fmt.Println("🔒 依存関係の都合で単独実行するマネージャがあります（apt）。")
-		fmt.Println()
-
-		if useTUI {
-			mergeUpdateStats(&stats, executeUpdatesParallel(ctx, exclusiveUpdaters, opts, 1, true))
-		} else {
-			mergeUpdateStats(&stats, executeUpdates(ctx, exclusiveUpdaters, opts))
-		}
-	}
-
-	if len(parallelUpdaters) > 0 {
-		if phaseRequiresSudo(parallelUpdaters, cfg.Sys.Managers) {
-			if err := ensureSudoAuthentication(ctx, "並列実行フェーズ"); err != nil {
-				return err
-			}
-
-			fmt.Println()
-		}
-
-		mergeUpdateStats(&stats, executeParallelUpdaters(ctx, parallelUpdaters, opts, jobs, useTUI))
+	stats, err := runSysUpdatePhases(ctx, cfg, opts, exclusiveUpdaters, parallelUpdaters, jobs, useTUI)
+	if err != nil {
+		return err
 	}
 
 	// サマリー表示
@@ -166,6 +141,66 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	fmt.Println("✅ システムパッケージの更新が完了しました")
+
+	return nil
+}
+
+// runSysUpdatePhases は単独実行・並列実行の各フェーズを実行します。
+func runSysUpdatePhases(ctx context.Context, cfg *config.Config, opts updater.UpdateOptions, exclusiveUpdaters, parallelUpdaters []updater.Updater, jobs int, useTUI bool) (updateStats, error) {
+	var stats updateStats
+
+	if len(exclusiveUpdaters) > 0 {
+		if err := runExclusivePhase(ctx, cfg, opts, exclusiveUpdaters, useTUI, &stats); err != nil {
+			return stats, err
+		}
+	}
+
+	if len(parallelUpdaters) > 0 {
+		if err := runParallelPhase(ctx, cfg, opts, parallelUpdaters, jobs, useTUI, &stats); err != nil {
+			return stats, err
+		}
+	}
+
+	return stats, nil
+}
+
+func runExclusivePhase(ctx context.Context, cfg *config.Config, opts updater.UpdateOptions, updaters []updater.Updater, useTUI bool, stats *updateStats) error {
+	if phaseRequiresSudo(updaters, cfg.Sys.Managers) {
+		if err := ensureSudoAuthentication(ctx, "単独実行フェーズ"); err != nil {
+			return err
+		}
+
+		if !useTUI {
+			fmt.Println()
+		}
+	}
+
+	if !useTUI {
+		fmt.Println("🔒 依存関係の都合で単独実行するマネージャがあります（apt）。")
+		fmt.Println()
+	}
+
+	if useTUI {
+		mergeUpdateStats(stats, executeUpdatesParallel(ctx, updaters, opts, 1, true))
+	} else {
+		mergeUpdateStats(stats, executeUpdates(ctx, updaters, opts))
+	}
+
+	return nil
+}
+
+func runParallelPhase(ctx context.Context, cfg *config.Config, opts updater.UpdateOptions, updaters []updater.Updater, jobs int, useTUI bool, stats *updateStats) error {
+	if phaseRequiresSudo(updaters, cfg.Sys.Managers) {
+		if err := ensureSudoAuthentication(ctx, "並列実行フェーズ"); err != nil {
+			return err
+		}
+
+		if !useTUI {
+			fmt.Println()
+		}
+	}
+
+	mergeUpdateStats(stats, executeParallelUpdaters(ctx, updaters, opts, jobs, useTUI))
 
 	return nil
 }

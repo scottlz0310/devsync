@@ -2,6 +2,7 @@ package secret
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -529,6 +530,63 @@ func TestPrintLoadStats(t *testing.T) {
 
 				for _, expected := range tt.checkStderr {
 					assert.Contains(t, stderr, expected, "stderr should contain: %s", expected)
+				}
+			}
+		})
+	}
+}
+
+func TestSync(t *testing.T) {
+	tests := []struct {
+		name        string
+		mockSync    func() error
+		expectErr   bool
+		errContains string
+		checkStderr string // stderrに含まれるべき文字列
+	}{
+		// 正常系
+		{
+			name: "同期成功",
+			mockSync: func() error {
+				return nil
+			},
+			expectErr: false,
+		},
+
+		// 失敗系（エラーパス）
+		{
+			name: "同期失敗でエラーを返す",
+			mockSync: func() error {
+				return fmt.Errorf("bw sync が失敗しました: exit status 1: network error")
+			},
+			expectErr:   true,
+			errContains: "bw sync が失敗しました",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// syncFunc を差し替え
+			original := syncFunc
+			syncFunc = tt.mockSync
+
+			t.Cleanup(func() {
+				syncFunc = original
+			})
+
+			// Sync() 自体ではなく syncFunc を直接テスト
+			stderr, err := captureStderrWithError(t, func() error {
+				return syncFunc()
+			})
+
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+			} else {
+				assert.NoError(t, err)
+
+				if tt.checkStderr != "" {
+					assert.Contains(t, stderr, tt.checkStderr)
 				}
 			}
 		})

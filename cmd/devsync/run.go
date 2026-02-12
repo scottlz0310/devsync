@@ -25,9 +25,10 @@ var runCmd = &cobra.Command{
 
 処理順序:
   1. Bitwarden のアンロック（secrets.enabled=true かつ未アンロック時のみ）
-  2. 環境変数の読み込み（secrets.enabled=true かつ未読み込み時のみ）
-  3. システム更新
-  4. リポジトリ同期`,
+  2. Bitwarden データの同期（bw sync でキャッシュを最新化）
+  3. 環境変数の読み込み（secrets.enabled=true かつ未読み込み時のみ）
+  4. システム更新
+  5. リポジトリ同期`,
 	RunE: runDaily,
 }
 

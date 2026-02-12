@@ -16,6 +16,9 @@ const (
 	statusUnlocked = "unlocked"
 )
 
+// syncFunc はテストで差し替え可能な同期処理の関数変数です。
+var syncFunc = Sync
+
 // debugLog はデバッグログを出力します。DEVSYNC_DEBUG=1 で有効化されます。
 func debugLog(format string, args ...interface{}) {
 	if os.Getenv("DEVSYNC_DEBUG") != "1" {
@@ -145,6 +148,25 @@ func Unlock() error {
 	return nil
 }
 
+// Sync はBitwardenのローカルキャッシュをサーバーと同期します。
+// キャッシュが古い場合に最新データを取得するため、環境変数読み込み前に実行します。
+func Sync() error {
+	defer debugTimerStart("bw sync")()
+
+	fmt.Fprintln(os.Stderr, "🔄 Bitwarden データを同期しています...")
+
+	cmd := exec.CommandContext(context.Background(), "bw", "sync")
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("bw sync が失敗しました: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+
+	fmt.Fprintln(os.Stderr, "✅ Bitwarden データを同期しました。")
+
+	return nil
+}
+
 // LoadEnv はBitwardenから "env:" プレフィックス付きの項目を取得し、環境変数に設定します。
 // 参考実装: bw-load-env 関数
 func LoadEnv() (*LoadStats, error) {
@@ -154,6 +176,11 @@ func LoadEnv() (*LoadStats, error) {
 
 	// 事前チェック
 	if err := checkBitwardenPrerequisites(); err != nil {
+		return stats, err
+	}
+
+	// サーバーと同期して最新データを取得（参照実装に合わせ、失敗時は中断）
+	if err := syncFunc(); err != nil {
 		return stats, err
 	}
 
@@ -338,6 +365,11 @@ func GetEnvVars() (map[string]string, error) {
 
 	if status != statusUnlocked {
 		return nil, fmt.Errorf("bitwarden がロックされています。'bw unlock' を実行してください")
+	}
+
+	// サーバーと同期して最新データを取得（参照実装に合わせ、失敗時は中断）
+	if syncErr := syncFunc(); syncErr != nil {
+		return nil, syncErr
 	}
 
 	// env: プレフィックス付きの項目を検索
