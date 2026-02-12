@@ -16,6 +16,9 @@ const (
 	statusUnlocked = "unlocked"
 )
 
+// syncFunc はテストで差し替え可能な同期処理の関数変数です。
+var syncFunc = Sync
+
 // debugLog はデバッグログを出力します。DEVSYNC_DEBUG=1 で有効化されます。
 func debugLog(format string, args ...interface{}) {
 	if os.Getenv("DEVSYNC_DEBUG") != "1" {
@@ -156,7 +159,7 @@ func Sync() error {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("bw sync が失敗しました: %w\n%s", err, strings.TrimSpace(string(output)))
+		return fmt.Errorf("bw sync が失敗しました: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 
 	fmt.Fprintln(os.Stderr, "✅ Bitwarden データを同期しました。")
@@ -176,9 +179,9 @@ func LoadEnv() (*LoadStats, error) {
 		return stats, err
 	}
 
-	// サーバーと同期して最新データを取得
-	if err := Sync(); err != nil {
-		fmt.Fprintf(os.Stderr, "⚠️  同期に失敗しましたが、キャッシュデータで続行します: %v\n", err)
+	// サーバーと同期して最新データを取得（参照実装に合わせ、失敗時は中断）
+	if err := syncFunc(); err != nil {
+		return stats, err
 	}
 
 	// env: プレフィックス付きの項目を検索
@@ -364,9 +367,9 @@ func GetEnvVars() (map[string]string, error) {
 		return nil, fmt.Errorf("bitwarden がロックされています。'bw unlock' を実行してください")
 	}
 
-	// サーバーと同期して最新データを取得
-	if err := Sync(); err != nil {
-		fmt.Fprintf(os.Stderr, "⚠️  同期に失敗しましたが、キャッシュデータで続行します: %v\n", err)
+	// サーバーと同期して最新データを取得（参照実装に合わせ、失敗時は中断）
+	if syncErr := syncFunc(); syncErr != nil {
+		return nil, syncErr
 	}
 
 	// env: プレフィックス付きの項目を検索
