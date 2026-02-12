@@ -111,9 +111,11 @@ func TestPipxUpdater_Check(t *testing.T) {
 
 			if tc.wantErr {
 				assert.Error(t, err)
+
 				if tc.errContains != "" && err != nil {
 					assert.Contains(t, err.Error(), tc.errContains)
 				}
+
 				return
 			}
 
@@ -182,9 +184,11 @@ func TestPipxUpdater_Update(t *testing.T) {
 
 			if tc.wantErr {
 				assert.Error(t, err)
+
 				if tc.errContains != "" && err != nil {
 					assert.Contains(t, err.Error(), tc.errContains)
 				}
+
 				return
 			}
 

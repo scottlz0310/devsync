@@ -255,6 +255,7 @@ if "%mode%"=="update_error" (
 )
 exit /b 0
 `
+
 		cargoPath := filepath.Join(dir, "cargo.cmd")
 		if err := os.WriteFile(cargoPath, []byte(cargoContent), 0o755); err != nil {
 			t.Fatalf("fake cargo command write failed: %v", err)
@@ -264,6 +265,7 @@ exit /b 0
 		updateContent := `@echo off
 exit /b 0
 `
+
 		updatePath := filepath.Join(dir, "cargo-install-update.cmd")
 		if err := os.WriteFile(updatePath, []byte(updateContent), 0o755); err != nil {
 			t.Fatalf("fake cargo-install-update command write failed: %v", err)
@@ -322,6 +324,7 @@ case "$1" in
     ;;
 esac
 `
+
 		cargoPath := filepath.Join(dir, "cargo")
 		if err := os.WriteFile(cargoPath, []byte(cargoContent), 0o755); err != nil {
 			t.Fatalf("fake cargo command write failed: %v", err)
@@ -335,6 +338,7 @@ esac
 		updateContent := `#!/bin/sh
 exit 0
 `
+
 		updatePath := filepath.Join(dir, "cargo-install-update")
 		if err := os.WriteFile(updatePath, []byte(updateContent), 0o755); err != nil {
 			t.Fatalf("fake cargo-install-update command write failed: %v", err)
