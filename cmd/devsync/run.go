@@ -120,8 +120,8 @@ func runSecretsPhase(cfg *config.Config) {
 	fmt.Println()
 }
 
-// isEnvAlreadyLoaded はシェル関数（devsync-load-env）経由で環境変数が既に読み込まれているかを判定します。
-// GPAT などの代表的な環境変数が設定済みであれば、bw list items の再実行をスキップします。
+// isEnvAlreadyLoaded はシェル関数（devsync-load-env）により設定されるマーカー環境変数
+// DEVSYNC_ENV_LOADED が "1" の場合、bw list items の再実行をスキップします。
 func isEnvAlreadyLoaded() bool {
 	return os.Getenv("DEVSYNC_ENV_LOADED") == "1"
 }

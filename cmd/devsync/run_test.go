@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/scottlz0310/devsync/internal/secret"
+	"github.com/scottlz0310/devsync/internal/testutil"
 	"github.com/spf13/cobra"
 )
 
@@ -29,9 +30,7 @@ func setupSecretsEnabledConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Setenv("HOME", tmpHome)
-	// Windows では os.UserHomeDir() が USERPROFILE を優先するため両方設定
-	t.Setenv("USERPROFILE", tmpHome)
+	testutil.SetTestHome(t, tmpHome)
 }
 
 func TestRunDaily(t *testing.T) {
@@ -152,9 +151,7 @@ func TestRunDaily_SecretsDisabled(t *testing.T) {
 	})
 
 	// secrets.enabled=false のデフォルト設定を使う（設定ファイルなしの一時HOME）
-	tmpHome := t.TempDir()
-	t.Setenv("HOME", tmpHome)
-	t.Setenv("USERPROFILE", tmpHome)
+	testutil.SetTestHome(t, t.TempDir())
 
 	calls := make([]string, 0, 2)
 

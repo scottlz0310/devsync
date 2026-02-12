@@ -1020,6 +1020,11 @@ devsync-load-env() {
   fi
 
   eval "$env_output"
+  local eval_status=$?
+  if [[ $eval_status -ne 0 ]]; then
+    return $eval_status
+  fi
+
   export DEVSYNC_ENV_LOADED=1
 }
 
@@ -1097,6 +1102,11 @@ devsync-load-env() {
   fi
 
   eval "$env_output"
+  local eval_status=$?
+  if [ $eval_status -ne 0 ]; then
+    return $eval_status
+  fi
+
   export DEVSYNC_ENV_LOADED=1
 }
 
