@@ -91,7 +91,7 @@ func (s *ScoopUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateR
 //	git               2.34.1              2.38.0
 //	nodejs            16.13.0             18.9.0
 //
-// "Everything is ok!" / "Scoop is up to date." のメッセージが含まれる場合は更新なしと判定します。
+// "Everything is ok!" のメッセージが含まれる場合は更新なしと判定します。
 func (s *ScoopUpdater) parseStatusOutput(output string) []PackageInfo {
 	lines := strings.Split(output, "\n")
 
