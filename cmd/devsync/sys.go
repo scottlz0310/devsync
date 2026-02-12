@@ -120,27 +120,31 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	printSysUpdateDryRunNotice(opts.DryRun)
+	if !useTUI {
+		printSysUpdateDryRunNotice(opts.DryRun)
+	}
 
 	jobs := resolveSysJobs(cfg.Control.Concurrency, sysJobs)
 	exclusiveUpdaters, parallelUpdaters := splitUpdatersForExecution(enabledUpdaters)
-
-	printSysUpdateTUIEnabledNotice(useTUI)
 
 	stats, err := runSysUpdatePhases(ctx, cfg, opts, exclusiveUpdaters, parallelUpdaters, jobs, useTUI)
 	if err != nil {
 		return err
 	}
 
-	// サマリー表示
-	printUpdateSummary(stats)
+	// TUI 使用時は TUI 側で完了サマリーを表示済みのため、テキストサマリーは非 TUI 時のみ出力
+	if !useTUI {
+		printUpdateSummary(stats)
+	}
 
 	if len(stats.Errors) > 0 {
 		return fmt.Errorf("%d 件のエラーが発生しました", len(stats.Errors))
 	}
 
-	fmt.Println()
-	fmt.Println("✅ システムパッケージの更新が完了しました")
+	if !useTUI {
+		fmt.Println()
+		fmt.Println("✅ システムパッケージの更新が完了しました")
+	}
 
 	return nil
 }
@@ -166,7 +170,7 @@ func runSysUpdatePhases(ctx context.Context, cfg *config.Config, opts updater.Up
 
 func runExclusivePhase(ctx context.Context, cfg *config.Config, opts updater.UpdateOptions, updaters []updater.Updater, useTUI bool, stats *updateStats) error {
 	if phaseRequiresSudo(updaters, cfg.Sys.Managers) {
-		if err := ensureSudoAuthentication(ctx, "単独実行フェーズ"); err != nil {
+		if err := ensureSudoAuthentication(ctx, "単独実行フェーズ", useTUI); err != nil {
 			return err
 		}
 
@@ -191,7 +195,7 @@ func runExclusivePhase(ctx context.Context, cfg *config.Config, opts updater.Upd
 
 func runParallelPhase(ctx context.Context, cfg *config.Config, opts updater.UpdateOptions, updaters []updater.Updater, jobs int, useTUI bool, stats *updateStats) error {
 	if phaseRequiresSudo(updaters, cfg.Sys.Managers) {
-		if err := ensureSudoAuthentication(ctx, "並列実行フェーズ"); err != nil {
+		if err := ensureSudoAuthentication(ctx, "並列実行フェーズ", useTUI); err != nil {
 			return err
 		}
 
@@ -211,15 +215,6 @@ func printSysUpdateDryRunNotice(dryRun bool) {
 	}
 
 	fmt.Println("📋 DryRun モード: 実際の更新は行いません")
-	fmt.Println()
-}
-
-func printSysUpdateTUIEnabledNotice(useTUI bool) {
-	if !useTUI {
-		return
-	}
-
-	fmt.Println("🖥️  TUI 進捗表示を有効化しました")
 	fmt.Println()
 }
 
@@ -533,8 +528,10 @@ func resolveManagerUseSudo(name string, managers map[string]config.ManagerConfig
 	return false, false
 }
 
-func ensureSudoAuthentication(ctx context.Context, phase string) error {
-	fmt.Printf("🔐 sudo 認証を確認します（%s）...\n", phase)
+func ensureSudoAuthentication(ctx context.Context, phase string, suppressOutput bool) error {
+	if !suppressOutput {
+		fmt.Printf("🔐 sudo 認証を確認します（%s）...\n", phase)
+	}
 
 	cmd := exec.CommandContext(ctx, "sudo", "-v")
 	cmd.Stdin = os.Stdin
@@ -545,7 +542,9 @@ func ensureSudoAuthentication(ctx context.Context, phase string) error {
 		return fmt.Errorf("sudo 認証に失敗しました（%s）: %w", phase, err)
 	}
 
-	fmt.Println("✅ sudo 認証を確認しました。")
+	if !suppressOutput {
+		fmt.Println("✅ sudo 認証を確認しました。")
+	}
 
 	return nil
 }
