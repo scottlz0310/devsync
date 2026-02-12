@@ -528,8 +528,8 @@ func resolveManagerUseSudo(name string, managers map[string]config.ManagerConfig
 	return false, false
 }
 
-func ensureSudoAuthentication(ctx context.Context, phase string, quiet bool) error {
-	if !quiet {
+func ensureSudoAuthentication(ctx context.Context, phase string, suppressOutput bool) error {
+	if !suppressOutput {
 		fmt.Printf("🔐 sudo 認証を確認します（%s）...\n", phase)
 	}
 
@@ -542,7 +542,7 @@ func ensureSudoAuthentication(ctx context.Context, phase string, quiet bool) err
 		return fmt.Errorf("sudo 認証に失敗しました（%s）: %w", phase, err)
 	}
 
-	if !quiet {
+	if !suppressOutput {
 		fmt.Println("✅ sudo 認証を確認しました。")
 	}
 

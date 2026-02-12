@@ -48,7 +48,7 @@ internal/
 
 1. `internal/updater/<name>.go` に `Updater` インターフェースを実装
 2. `init()` 内で `Register(NewXxxUpdater())` を呼ぶ
-3. `var _ Updater = (*XxxUpdater)(nil)` でインターフェース準拠を保証
+3. （推奨）`var _ Updater = (*XxxUpdater)(nil)` を追加してインターフェース準拠を明示する
 4. エラーは `buildCommandOutputErr(err, output)` でラップ
 5. 出力解析が必要なコマンドは `runCommandOutputWithLocaleC()` で `LANG=C` 固定実行
 
