@@ -13,7 +13,7 @@ import (
 )
 
 // setupSecretsEnabledConfig はテスト用の一時ディレクトリに secrets.enabled=true の設定を作成し、
-// HOME を差し替えることで config.Load() が実際の設定を読まないようにします。
+// HOME / USERPROFILE を差し替えることで config.Load() が実際の設定を読まないようにします。
 func setupSecretsEnabledConfig(t *testing.T) {
 	t.Helper()
 
@@ -30,6 +30,8 @@ func setupSecretsEnabledConfig(t *testing.T) {
 	}
 
 	t.Setenv("HOME", tmpHome)
+	// Windows では os.UserHomeDir() が USERPROFILE を優先するため両方設定
+	t.Setenv("USERPROFILE", tmpHome)
 }
 
 func TestRunDaily(t *testing.T) {
@@ -150,7 +152,9 @@ func TestRunDaily_SecretsDisabled(t *testing.T) {
 	})
 
 	// secrets.enabled=false のデフォルト設定を使う（設定ファイルなしの一時HOME）
-	t.Setenv("HOME", t.TempDir())
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	t.Setenv("USERPROFILE", tmpHome)
 
 	calls := make([]string, 0, 2)
 

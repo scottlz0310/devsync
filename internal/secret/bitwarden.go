@@ -33,6 +33,7 @@ func debugTimerStart(label string) func() {
 	}
 
 	start := time.Now()
+
 	debugLog("%s: 開始", label)
 
 	return func() {
@@ -86,11 +87,14 @@ func Unlock() error {
 
 	// ログイン状態の確認
 	done := debugTimerStart("bw login --check")
+
 	cmd := exec.CommandContext(context.Background(), "bw", "login", "--check")
 	if err := cmd.Run(); err != nil {
 		done()
+
 		return fmt.Errorf("bitwarden にログインしていません。'bw login' を実行してください")
 	}
+
 	done()
 
 	// 既にセッションがある場合は状態を確認し、アンロック済みなら何もしない
@@ -114,7 +118,9 @@ func Unlock() error {
 	cmd.Stderr = os.Stderr
 
 	output, err := cmd.Output()
+
 	done()
+
 	if err != nil {
 		return fmt.Errorf("bw unlock が失敗しました: %w", err)
 	}
@@ -339,7 +345,9 @@ func GetEnvVars() (map[string]string, error) {
 	cmd := exec.CommandContext(context.Background(), "bw", "list", "items", "--search", "env:")
 
 	output, err := cmd.Output()
+
 	done()
+
 	if err != nil {
 		return nil, fmt.Errorf("bw list items が失敗しました: %w", err)
 	}
