@@ -2,6 +2,8 @@ package env
 
 import (
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 )
 
@@ -47,6 +49,15 @@ func GetRecommendedManagers() []string {
 	managers = append(managers, "go", "npm")
 
 	switch {
+	case runtime.GOOS == "windows":
+		// Windows 環境
+		if _, err := exec.LookPath("winget"); err == nil {
+			managers = append(managers, "winget")
+		}
+
+		if _, err := exec.LookPath("scoop"); err == nil {
+			managers = append(managers, "scoop")
+		}
 	case IsContainer():
 		// Container environment usually relies on apt/apk but user might not want to update system packages directly.
 		// Use apt if it's Debian/Ubuntu based.
