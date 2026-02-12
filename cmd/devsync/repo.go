@@ -204,7 +204,10 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 	execJobs := buildRepoUpdateJobs(root, repoPaths, opts, useTUI)
 	summary := runJobsWithOptionalTUI(ctx, "repo update 進捗", jobs, execJobs, useTUI)
 
-	printRepoUpdateSummary(summary)
+	// TUI 使用時は TUI 側で完了サマリーを表示済みのため、テキストサマリーは非 TUI 時のみ出力
+	if !useTUI {
+		printRepoUpdateSummary(summary)
+	}
 
 	if summary.Failed > 0 {
 		return fmt.Errorf("%d 件のリポジトリ更新に失敗しました", summary.Failed)
@@ -214,7 +217,9 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("キャンセルまたはタイムアウトにより %d 件をスキップしました", summary.Skipped)
 	}
 
-	fmt.Println("✅ リポジトリ更新が完了しました")
+	if !useTUI {
+		fmt.Println("✅ リポジトリ更新が完了しました")
+	}
 
 	return nil
 }

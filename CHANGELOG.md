@@ -47,6 +47,8 @@
 - Bitwarden CLI に未ログインの状態で `dev-sync` を実行すると、タイムアウトまで待って失敗する問題を修正（未ログインを即検知し、`bw login` を案内して終了）
 - GitHub のレート制限（`429 Too Many Requests` / `secondary rate limit`）発生時に `gh` 呼び出しをリトライ/スロットリングし、`repo update` の GitHub 補完はレート制限時にスキップして処理を継続するよう改善
 - Linux 環境で TUI 使用時に標準出力メッセージと Bubble Tea の画面制御が混在して表示が崩れる問題を修正（TUI 起動前の stdout 出力を抑制）
+- `sys update --tui` / `repo update --tui` で TUI 完了後にテキストサマリー・完了メッセージが二重表示される問題を修正
+- `sys update --tui` で DryRun 通知・sudo 認証メッセージ・TUI 有効通知が TUI 前に出力されて表示が崩れる問題を修正
 
 ### Infrastructure
 
