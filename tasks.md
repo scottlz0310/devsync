@@ -142,6 +142,8 @@
     - [ ] 各Updaterの dry-run / timeout / エラー分類の統合テスト
 - [ ] 通知機能の実装
 - [x] Windows/PowerShell で `config init` がプロファイルパスを文字化けして誤ったフォルダを作成する問題を修正
+- [x] 環境変数読み込み前に `bw sync` を実行してキャッシュを最新化（Issue #47）
+- [x] Linux 環境で TUI 使用時の表示崩れを修正（TUI 前後の stdout 出力抑制）（Issue #47）
 - [ ] Windows (Winget/Scoop) 対応検証
 - [ ] GoReleaser によるリリース自動化
 - [ ] GitHub Actions CI/CD 設定

@@ -85,9 +85,6 @@ func init() {
 }
 
 func runSysUpdate(cmd *cobra.Command, args []string) error {
-	fmt.Println("🔄 システムパッケージの更新を開始します...")
-	fmt.Println()
-
 	// 設定の読み込み
 	cfg, opts := loadSysUpdateConfig(cmd)
 
@@ -117,6 +114,12 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// TUI 使用時は開始メッセージを抑制（TUI が画面を制御するため）
+	if !useTUI {
+		fmt.Println("🔄 システムパッケージの更新を開始します...")
+		fmt.Println()
+	}
+
 	printSysUpdateDryRunNotice(opts.DryRun)
 
 	jobs := resolveSysJobs(cfg.Control.Concurrency, sysJobs)
@@ -132,11 +135,15 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 				return err
 			}
 
-			fmt.Println()
+			if !useTUI {
+				fmt.Println()
+			}
 		}
 
-		fmt.Println("🔒 依存関係の都合で単独実行するマネージャがあります（apt）。")
-		fmt.Println()
+		if !useTUI {
+			fmt.Println("🔒 依存関係の都合で単独実行するマネージャがあります（apt）。")
+			fmt.Println()
+		}
 
 		if useTUI {
 			mergeUpdateStats(&stats, executeUpdatesParallel(ctx, exclusiveUpdaters, opts, 1, true))
@@ -151,7 +158,9 @@ func runSysUpdate(cmd *cobra.Command, args []string) error {
 				return err
 			}
 
-			fmt.Println()
+			if !useTUI {
+				fmt.Println()
+			}
 		}
 
 		mergeUpdateStats(&stats, executeParallelUpdaters(ctx, parallelUpdaters, opts, jobs, useTUI))

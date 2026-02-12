@@ -16,6 +16,7 @@
 - `sys update` の対応マネージャに `flatpak` / `fwupdmgr` を追加
 - `sys update` の対応マネージャに `pnpm` / `nvm` を追加
 - `sys update` の対応マネージャに `uv` / `rustup` / `gem` を追加
+- 環境変数読み込み前に `bw sync` を実行し、Bitwarden のキャッシュを最新化する機能を追加
 
 ### Changed
 
@@ -45,6 +46,7 @@
 - Windows 環境で Git の `core.autocrlf` により Go ファイルが CRLF になり `task lint` の gofmt チェックが失敗する問題を回避（`.gitattributes` で LF 固定）
 - Bitwarden CLI に未ログインの状態で `dev-sync` を実行すると、タイムアウトまで待って失敗する問題を修正（未ログインを即検知し、`bw login` を案内して終了）
 - GitHub のレート制限（`429 Too Many Requests` / `secondary rate limit`）発生時に `gh` 呼び出しをリトライ/スロットリングし、`repo update` の GitHub 補完はレート制限時にスキップして処理を継続するよう改善
+- Linux 環境で TUI 使用時に標準出力メッセージと Bubble Tea の画面制御が混在して表示が崩れる問題を修正（TUI 起動前の stdout 出力を抑制）
 
 ### Infrastructure
 

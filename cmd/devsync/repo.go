@@ -190,17 +190,16 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 
 	jobs := resolveRepoJobs(cfg.Control.Concurrency, repoUpdateJobs)
 
-	if useTUI {
-		fmt.Println("🖥️  TUI 進捗表示を有効化しました")
+	// TUI 使用時は開始メッセージを抑制（TUI が画面を制御するため）
+	if !useTUI {
+		fmt.Printf("🔄 リポジトリ更新を開始します (%d件, 並列=%d)\n", len(repoPaths), jobs)
+
+		if opts.DryRun {
+			fmt.Println("📋 DryRun モード: 実際の更新は行いません")
+		}
+
+		fmt.Println()
 	}
-
-	fmt.Printf("🔄 リポジトリ更新を開始します (%d件, 並列=%d)\n", len(repoPaths), jobs)
-
-	if opts.DryRun {
-		fmt.Println("📋 DryRun モード: 実際の更新は行いません")
-	}
-
-	fmt.Println()
 
 	execJobs := buildRepoUpdateJobs(root, repoPaths, opts, useTUI)
 	summary := runJobsWithOptionalTUI(ctx, "repo update 進捗", jobs, execJobs, useTUI)

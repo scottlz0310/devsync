@@ -145,6 +145,25 @@ func Unlock() error {
 	return nil
 }
 
+// Sync はBitwardenのローカルキャッシュをサーバーと同期します。
+// キャッシュが古い場合に最新データを取得するため、環境変数読み込み前に実行します。
+func Sync() error {
+	defer debugTimerStart("bw sync")()
+
+	fmt.Fprintln(os.Stderr, "🔄 Bitwarden データを同期しています...")
+
+	cmd := exec.CommandContext(context.Background(), "bw", "sync")
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("bw sync が失敗しました: %w\n%s", err, strings.TrimSpace(string(output)))
+	}
+
+	fmt.Fprintln(os.Stderr, "✅ Bitwarden データを同期しました。")
+
+	return nil
+}
+
 // LoadEnv はBitwardenから "env:" プレフィックス付きの項目を取得し、環境変数に設定します。
 // 参考実装: bw-load-env 関数
 func LoadEnv() (*LoadStats, error) {
@@ -155,6 +174,11 @@ func LoadEnv() (*LoadStats, error) {
 	// 事前チェック
 	if err := checkBitwardenPrerequisites(); err != nil {
 		return stats, err
+	}
+
+	// サーバーと同期して最新データを取得
+	if err := Sync(); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  同期に失敗しましたが、キャッシュデータで続行します: %v\n", err)
 	}
 
 	// env: プレフィックス付きの項目を検索
@@ -338,6 +362,11 @@ func GetEnvVars() (map[string]string, error) {
 
 	if status != statusUnlocked {
 		return nil, fmt.Errorf("bitwarden がロックされています。'bw unlock' を実行してください")
+	}
+
+	// サーバーと同期して最新データを取得
+	if err := Sync(); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  同期に失敗しましたが、キャッシュデータで続行します: %v\n", err)
 	}
 
 	// env: プレフィックス付きの項目を検索
