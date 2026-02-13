@@ -87,6 +87,11 @@ func runDaily(cmd *cobra.Command, args []string) error {
 	// run のフラグを子コマンドに伝播
 	propagateRunFlags(cmd)
 
+	// --tui と --no-tui の矛盾チェック（フェーズ実行前に検出）
+	if cmd.Flags().Changed("tui") && runTUI && cmd.Flags().Changed("no-tui") && runNoTUI {
+		return fmt.Errorf("--tui と --no-tui は同時指定できません")
+	}
+
 	// 1 & 2. Bitwarden のアンロック + 環境変数読み込み
 	runSecretsPhase(cfg)
 
@@ -130,17 +135,17 @@ type phaseError struct {
 }
 
 // printPhaseErrors は各フェーズのエラーをまとめて表示します。
-func printPhaseErrors(errors []phaseError) {
-	if len(errors) == 0 {
+func printPhaseErrors(phaseErrors []phaseError) {
+	if len(phaseErrors) == 0 {
 		return
 	}
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "❌ 以下のフェーズでエラーが発生しました:")
 
-	for i, pe := range errors {
+	for i, pe := range phaseErrors {
 		prefix := "  ├──"
-		if i == len(errors)-1 {
+		if i == len(phaseErrors)-1 {
 			prefix = "  └──"
 		}
 

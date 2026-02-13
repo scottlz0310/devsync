@@ -418,3 +418,48 @@ func TestPrintPhaseErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestRunDaily_ConflictingTUIFlags(t *testing.T) {
+	originalSysUpdate := runSysUpdateStep
+	originalRepoUpdate := runRepoUpdateStep
+
+	t.Cleanup(func() {
+		runSysUpdateStep = originalSysUpdate
+		runRepoUpdateStep = originalRepoUpdate
+	})
+
+	testutil.SetTestHome(t, t.TempDir())
+
+	runSysUpdateStep = func(*cobra.Command, []string) error {
+		t.Fatal("sys_update should not be called with conflicting flags")
+		return nil
+	}
+
+	runRepoUpdateStep = func(*cobra.Command, []string) error {
+		t.Fatal("repo_update should not be called with conflicting flags")
+		return nil
+	}
+
+	cmd := &cobra.Command{Use: "run"}
+	cmd.Flags().BoolVarP(&runDryRun, "dry-run", "n", false, "")
+	cmd.Flags().IntVarP(&runJobs, "jobs", "j", 0, "")
+	cmd.Flags().BoolVar(&runTUI, "tui", false, "")
+	cmd.Flags().BoolVar(&runNoTUI, "no-tui", false, "")
+
+	if err := cmd.Flags().Set("tui", "true"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cmd.Flags().Set("no-tui", "true"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runDaily(cmd, nil)
+	if err == nil {
+		t.Fatal("runDaily() should return error for conflicting --tui and --no-tui")
+	}
+
+	if !strings.Contains(err.Error(), "--tui と --no-tui は同時指定できません") {
+		t.Errorf("runDaily() error = %q, want substring about conflicting flags", err.Error())
+	}
+}
