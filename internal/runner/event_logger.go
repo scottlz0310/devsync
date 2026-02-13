@@ -12,6 +12,7 @@ type EventLogger struct {
 	file      *os.File
 	mu        sync.Mutex
 	startedAt time.Time
+	writeErr  error
 }
 
 // NewEventLogger は指定パスにログファイルを作成し、EventLogger を返します。
@@ -53,6 +54,9 @@ func (l *EventLogger) LogEvent(event *Event) {
 		} else {
 			line = fmt.Sprintf("%s [%s] %s (%s)", ts, status, event.JobName, dur)
 		}
+	default:
+		// 未知のイベントタイプはログ出力をスキップ
+		return
 	}
 
 	l.writeLine(line)
@@ -66,17 +70,28 @@ func (l *EventLogger) WriteSummary(summary Summary) {
 	l.writeLine(fmt.Sprintf("# 所要時間: %s", time.Since(l.startedAt).Round(time.Millisecond)))
 }
 
-// Close はログファイルを閉じます。
+// Close はログファイルを閉じます。書き込みエラーがあった場合はそれも報告します。
 func (l *EventLogger) Close() error {
-	return l.file.Close()
+	closeErr := l.file.Close()
+
+	if l.writeErr != nil {
+		return l.writeErr
+	}
+
+	return closeErr
 }
 
 func (l *EventLogger) writeLine(line string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	//nolint:errcheck // ログファイルへの書き込みエラーは無視する
-	fmt.Fprintln(l.file, line)
+	if l.writeErr != nil {
+		return
+	}
+
+	if _, err := fmt.Fprintln(l.file, line); err != nil {
+		l.writeErr = fmt.Errorf("ログファイルへの書き込みに失敗: %w", err)
+	}
 }
 
 func statusLabel(s ResultStatus) string {
