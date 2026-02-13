@@ -146,8 +146,8 @@
 - [x] Linux 環境で TUI 使用時の表示崩れを修正（TUI 前後の stdout 出力抑制）（Issue #47）
 - [x] `sys update --tui` / `repo update --tui` で TUI 完了後のサマリー・完了メッセージ二重表示を修正
 - [x] Windows (Winget/Scoop) 対応検証
-- [ ] GoReleaser によるリリース自動化
-- [ ] GitHub Actions CI/CD 設定
+- [x] GoReleaser によるリリース自動化
+- [x] GitHub Actions CI/CD 設定
 - [x] `sys update` / `repo update` の E2E テスト整備
     - [x] `--tui` 指定時の終了コードとサマリー整合を確認
     - [x] 非TTY環境での `--tui` 自動フォールバック挙動を確認

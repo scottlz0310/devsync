@@ -8,6 +8,9 @@
 
 ### Added
 
+- GoReleaser によるクロスプラットフォームビルドとリリース自動化を追加（Linux/macOS/Windows）
+- GitHub Actions リリースワークフロー（`v*` タグプッシュで自動リリース）を追加
+- `task snapshot` / `task release:check` タスクを追加（ローカルでのリリースビルド検証）
 - gitleaks によるシークレット混入チェックを追加（GitHub Actions / `task secrets`）
 - `config.yaml` に `ui.tui` を追加し、`--tui` なしでも進捗TUIを既定で有効化できるように改善
 - `sys update` / `repo update` に `--no-tui` を追加（設定より優先してTUIを無効化）
@@ -26,6 +29,7 @@
 
 ### Changed
 
+- バージョン管理をハードコード (`const appVersion`) からビルド時 ldflags 注入 (`-X main.version`) 方式に変更
 - `devsync run` の Bitwarden 重複呼び出しを削減：シェル関数側で既にアンロック済み・環境変数読み込み済みの場合、Go バイナリ側で `bw status` / `bw list items` の再実行をスキップ（`DEVSYNC_ENV_LOADED` マーカーにより判定）
 - `devsync run` で `secrets.enabled` 設定を参照し、シークレット管理が無効な場合は bw 操作を完全にスキップするよう改善
 - `devsync run` で Bitwarden アンロック失敗時に処理を中断せず、シークレット読み込みをスキップしてシステム更新・リポジトリ同期を続行するよう改善

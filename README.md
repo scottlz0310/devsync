@@ -26,7 +26,18 @@ DevSync は、開発環境の運用作業を統合・一元化するためのク
 - `gh` (GitHub CLI, `repo` 系運用時に推奨)
 - `bw` (Bitwarden CLI, `env` / `run` 運用時に推奨)
 
-### インストール方法（推奨: go install）
+### インストール方法（推奨: GitHub Releases）
+
+[Releases ページ](https://github.com/scottlz0310/devsync/releases) からお使いの OS 向けのバイナリをダウンロードして PATH に配置してください。
+
+```bash
+# 例: Linux amd64
+curl -Lo devsync.tar.gz https://github.com/scottlz0310/devsync/releases/latest/download/devsync_linux_amd64.tar.gz
+tar xzf devsync.tar.gz
+sudo mv devsync /usr/local/bin/
+```
+
+### インストール方法（go install）
 
 ```bash
 go install github.com/scottlz0310/devsync/cmd/devsync@latest
@@ -402,6 +413,19 @@ task secrets:install # gitleaks をインストール（初回のみ）
 task secrets     # gitleaks でシークレット混入をチェック
 task clean       # ビルド成果物を削除
 task tidy        # go mod tidy
+
+# リリース検証
+task release:check  # GoReleaser 設定の検証
+task snapshot       # スナップショットビルド（ローカル検証用）
+```
+
+### リリース手順
+
+`v*` タグをプッシュすると GitHub Actions で自動リリースされます。
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 ### Windows で `task lint` が gofmt で落ちる場合

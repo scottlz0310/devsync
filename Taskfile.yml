@@ -18,7 +18,7 @@ tasks:
   build:
     desc: バイナリをビルド（dist/に出力）
     cmds:
-      - go build -o {{.DIST_DIR}}/{{.BINARY_NAME}} ./cmd/devsync
+      - go build -ldflags "-X main.version=dev" -o {{.DIST_DIR}}/{{.BINARY_NAME}} ./cmd/devsync
     sources:
       - ./**/*.go
     generates:
@@ -180,3 +180,16 @@ tasks:
     desc: コミット前チェック（task check を実行）
     cmds:
       - task: check
+
+  # ============================================
+  # リリース
+  # ============================================
+  snapshot:
+    desc: GoReleaser でスナップショットビルド（リリースせずローカル検証）
+    cmds:
+      - goreleaser release --snapshot --clean
+
+  release:check:
+    desc: GoReleaser 設定の検証
+    cmds:
+      - goreleaser check
