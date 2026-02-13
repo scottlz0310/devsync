@@ -363,7 +363,7 @@ func TestPropagateRunFlags(t *testing.T) {
 	}
 }
 
-//nolint:cyclop
+//nolint:cyclop // テスト用アサーションヘルパーのため複雑度は許容する
 func assertPropagatedFlags(t *testing.T,
 	wantSysDryRun, wantRepoDryRun bool,
 	wantSysJobs, wantRepoJobs int,

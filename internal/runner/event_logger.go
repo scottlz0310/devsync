@@ -75,7 +75,8 @@ func (l *EventLogger) writeLine(line string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	_, _ = fmt.Fprintln(l.file, line)
+	//nolint:errcheck // ログファイルへの書き込みエラーは無視する
+	fmt.Fprintln(l.file, line)
 }
 
 func statusLabel(s ResultStatus) string {
