@@ -19,7 +19,11 @@ func runJobsWithOptionalTUI(ctx context.Context, title string, jobs int, execJob
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "⚠️  ログファイルを開けません: %v\n", err)
 		} else {
-			defer logger.Close()
+			defer func() {
+				if cerr := logger.Close(); cerr != nil {
+					fmt.Fprintf(os.Stderr, "⚠️  ログファイルのクローズに失敗: %v\n", cerr)
+				}
+			}()
 		}
 	}
 
@@ -34,7 +38,9 @@ func runJobsWithOptionalTUI(ctx context.Context, title string, jobs int, execJob
 		}
 	} else {
 		if logger != nil {
-			summary = runner.ExecuteWithEvents(ctx, jobs, execJobs, logger.LogEvent)
+			summary = runner.ExecuteWithEvents(ctx, jobs, execJobs, func(event runner.Event) {
+				logger.LogEvent(&event)
+			})
 		} else {
 			summary = runner.Execute(ctx, jobs, execJobs)
 		}

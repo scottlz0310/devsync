@@ -97,7 +97,7 @@ func RunJobProgressWithLogger(ctx context.Context, title string, maxJobs int, jo
 			program.Send(runnerEventMsg{Event: event})
 
 			if logger != nil {
-				logger.LogEvent(event)
+				logger.LogEvent(&event)
 			}
 		})
 

@@ -19,21 +19,21 @@ func TestEventLogger_基本的なイベント記録(t *testing.T) {
 
 	now := time.Now()
 
-	logger.LogEvent(Event{
+	logger.LogEvent(&Event{
 		Type:      EventQueued,
 		JobIndex:  0,
 		JobName:   "apt",
 		Timestamp: now,
 	})
 
-	logger.LogEvent(Event{
+	logger.LogEvent(&Event{
 		Type:      EventStarted,
 		JobIndex:  0,
 		JobName:   "apt",
 		Timestamp: now.Add(time.Second),
 	})
 
-	logger.LogEvent(Event{
+	logger.LogEvent(&Event{
 		Type:      EventFinished,
 		JobIndex:  0,
 		JobName:   "apt",
@@ -47,16 +47,7 @@ func TestEventLogger_基本的なイベント記録(t *testing.T) {
 		Success: 1,
 	})
 
-	if err := logger.Close(); err != nil {
-		t.Fatalf("Close() error = %v", err)
-	}
-
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-
-	content := string(data)
+	content := closeAndRead(t, logger, logPath)
 
 	checks := []struct {
 		name     string
@@ -88,7 +79,7 @@ func TestEventLogger_失敗イベント(t *testing.T) {
 		t.Fatalf("NewEventLogger() error = %v", err)
 	}
 
-	logger.LogEvent(Event{
+	logger.LogEvent(&Event{
 		Type:      EventFinished,
 		JobIndex:  0,
 		JobName:   "brew",
@@ -98,16 +89,7 @@ func TestEventLogger_失敗イベント(t *testing.T) {
 		Timestamp: time.Now(),
 	})
 
-	if err := logger.Close(); err != nil {
-		t.Fatalf("Close() error = %v", err)
-	}
-
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-
-	content := string(data)
+	content := closeAndRead(t, logger, logPath)
 
 	if !strings.Contains(content, "[FAILED ]") {
 		t.Errorf("ログに [FAILED ] が含まれていません: %s", content)
@@ -127,7 +109,7 @@ func TestEventLogger_スキップイベント(t *testing.T) {
 		t.Fatalf("NewEventLogger() error = %v", err)
 	}
 
-	logger.LogEvent(Event{
+	logger.LogEvent(&Event{
 		Type:      EventFinished,
 		JobIndex:  0,
 		JobName:   "snap",
@@ -136,17 +118,10 @@ func TestEventLogger_スキップイベント(t *testing.T) {
 		Timestamp: time.Now(),
 	})
 
-	if err := logger.Close(); err != nil {
-		t.Fatalf("Close() error = %v", err)
-	}
+	content := closeAndRead(t, logger, logPath)
 
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-
-	if !strings.Contains(string(data), "[SKIPPED]") {
-		t.Errorf("ログに [SKIPPED] が含まれていません: %s", string(data))
+	if !strings.Contains(content, "[SKIPPED]") {
+		t.Errorf("ログに [SKIPPED] が含まれていません: %s", content)
 	}
 }
 
@@ -161,3 +136,19 @@ func TestNewEventLogger_無効なパス(t *testing.T) {
 type errForTest string
 
 func (e errForTest) Error() string { return string(e) }
+
+// closeAndRead はロガーを閉じてログファイルの内容を文字列で返します。
+func closeAndRead(t *testing.T, logger *EventLogger, path string) string {
+	t.Helper()
+
+	if err := logger.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+
+	return string(data)
+}

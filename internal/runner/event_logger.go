@@ -34,7 +34,7 @@ func NewEventLogger(path string) (*EventLogger, error) {
 }
 
 // LogEvent はイベントを1行のログとしてファイルに書き込みます。
-func (l *EventLogger) LogEvent(event Event) {
+func (l *EventLogger) LogEvent(event *Event) {
 	ts := event.Timestamp.Format("15:04:05.000")
 
 	var line string
@@ -75,7 +75,7 @@ func (l *EventLogger) writeLine(line string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	fmt.Fprintln(l.file, line)
+	_, _ = fmt.Fprintln(l.file, line)
 }
 
 func statusLabel(s ResultStatus) string {

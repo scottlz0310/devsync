@@ -356,46 +356,60 @@ func TestPropagateRunFlags(t *testing.T) {
 
 			propagateRunFlags(cmd)
 
-			if sysDryRun != tt.wantSysDryRun {
-				t.Errorf("sysDryRun = %v, want %v", sysDryRun, tt.wantSysDryRun)
-			}
-
-			if repoUpdateDryRun != tt.wantRepoDryRun {
-				t.Errorf("repoUpdateDryRun = %v, want %v", repoUpdateDryRun, tt.wantRepoDryRun)
-			}
-
-			if sysJobs != tt.wantSysJobs {
-				t.Errorf("sysJobs = %v, want %v", sysJobs, tt.wantSysJobs)
-			}
-
-			if repoUpdateJobs != tt.wantRepoJobs {
-				t.Errorf("repoUpdateJobs = %v, want %v", repoUpdateJobs, tt.wantRepoJobs)
-			}
-
-			if sysTUI != tt.wantSysTUI {
-				t.Errorf("sysTUI = %v, want %v", sysTUI, tt.wantSysTUI)
-			}
-
-			if repoUpdateTUI != tt.wantRepoTUI {
-				t.Errorf("repoUpdateTUI = %v, want %v", repoUpdateTUI, tt.wantRepoTUI)
-			}
-
-			if sysNoTUI != tt.wantSysNoTUI {
-				t.Errorf("sysNoTUI = %v, want %v", sysNoTUI, tt.wantSysNoTUI)
-			}
-
-			if repoUpdateNoTUI != tt.wantRepoNoTUI {
-				t.Errorf("repoUpdateNoTUI = %v, want %v", repoUpdateNoTUI, tt.wantRepoNoTUI)
-			}
-
-			if sysLogFile != tt.wantSysLogFile {
-				t.Errorf("sysLogFile = %v, want %v", sysLogFile, tt.wantSysLogFile)
-			}
-
-			if repoUpdateLogFile != tt.wantRepoLogFile {
-				t.Errorf("repoUpdateLogFile = %v, want %v", repoUpdateLogFile, tt.wantRepoLogFile)
-			}
+			assertPropagatedFlags(t, tt.wantSysDryRun, tt.wantRepoDryRun, tt.wantSysJobs, tt.wantRepoJobs,
+				tt.wantSysTUI, tt.wantRepoTUI, tt.wantSysNoTUI, tt.wantRepoNoTUI,
+				tt.wantSysLogFile, tt.wantRepoLogFile)
 		})
+	}
+}
+
+//nolint:cyclop
+func assertPropagatedFlags(t *testing.T,
+	wantSysDryRun, wantRepoDryRun bool,
+	wantSysJobs, wantRepoJobs int,
+	wantSysTUI, wantRepoTUI, wantSysNoTUI, wantRepoNoTUI bool,
+	wantSysLogFile, wantRepoLogFile string,
+) {
+	t.Helper()
+
+	if sysDryRun != wantSysDryRun {
+		t.Errorf("sysDryRun = %v, want %v", sysDryRun, wantSysDryRun)
+	}
+
+	if repoUpdateDryRun != wantRepoDryRun {
+		t.Errorf("repoUpdateDryRun = %v, want %v", repoUpdateDryRun, wantRepoDryRun)
+	}
+
+	if sysJobs != wantSysJobs {
+		t.Errorf("sysJobs = %v, want %v", sysJobs, wantSysJobs)
+	}
+
+	if repoUpdateJobs != wantRepoJobs {
+		t.Errorf("repoUpdateJobs = %v, want %v", repoUpdateJobs, wantRepoJobs)
+	}
+
+	if sysTUI != wantSysTUI {
+		t.Errorf("sysTUI = %v, want %v", sysTUI, wantSysTUI)
+	}
+
+	if repoUpdateTUI != wantRepoTUI {
+		t.Errorf("repoUpdateTUI = %v, want %v", repoUpdateTUI, wantRepoTUI)
+	}
+
+	if sysNoTUI != wantSysNoTUI {
+		t.Errorf("sysNoTUI = %v, want %v", sysNoTUI, wantSysNoTUI)
+	}
+
+	if repoUpdateNoTUI != wantRepoNoTUI {
+		t.Errorf("repoUpdateNoTUI = %v, want %v", repoUpdateNoTUI, wantRepoNoTUI)
+	}
+
+	if sysLogFile != wantSysLogFile {
+		t.Errorf("sysLogFile = %v, want %v", sysLogFile, wantSysLogFile)
+	}
+
+	if repoUpdateLogFile != wantRepoLogFile {
+		t.Errorf("repoUpdateLogFile = %v, want %v", repoUpdateLogFile, wantRepoLogFile)
 	}
 }
 
