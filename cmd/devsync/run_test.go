@@ -242,33 +242,39 @@ func TestPropagateRunFlags(t *testing.T) {
 	origSysJobs := sysJobs
 	origSysTUI := sysTUI
 	origSysNoTUI := sysNoTUI
+	origSysLogFile := sysLogFile
 	origRepoDryRun := repoUpdateDryRun
 	origRepoJobs := repoUpdateJobs
 	origRepoTUI := repoUpdateTUI
 	origRepoNoTUI := repoUpdateNoTUI
+	origRepoLogFile := repoUpdateLogFile
 
 	t.Cleanup(func() {
 		sysDryRun = origSysDryRun
 		sysJobs = origSysJobs
 		sysTUI = origSysTUI
 		sysNoTUI = origSysNoTUI
+		sysLogFile = origSysLogFile
 		repoUpdateDryRun = origRepoDryRun
 		repoUpdateJobs = origRepoJobs
 		repoUpdateTUI = origRepoTUI
 		repoUpdateNoTUI = origRepoNoTUI
+		repoUpdateLogFile = origRepoLogFile
 	})
 
 	tests := []struct {
-		name           string
-		setFlags       func(cmd *cobra.Command)
-		wantSysDryRun  bool
-		wantRepoDryRun bool
-		wantSysJobs    int
-		wantRepoJobs   int
-		wantSysTUI     bool
-		wantRepoTUI    bool
-		wantSysNoTUI   bool
-		wantRepoNoTUI  bool
+		name            string
+		setFlags        func(cmd *cobra.Command)
+		wantSysDryRun   bool
+		wantRepoDryRun  bool
+		wantSysJobs     int
+		wantRepoJobs    int
+		wantSysTUI      bool
+		wantRepoTUI     bool
+		wantSysNoTUI    bool
+		wantRepoNoTUI   bool
+		wantSysLogFile  string
+		wantRepoLogFile string
 	}{
 		{
 			name:     "フラグ未指定時は伝播しない",
@@ -314,6 +320,16 @@ func TestPropagateRunFlags(t *testing.T) {
 			wantSysNoTUI:  true,
 			wantRepoNoTUI: true,
 		},
+		{
+			name: "log-fileフラグが伝播される",
+			setFlags: func(cmd *cobra.Command) {
+				if err := cmd.Flags().Set("log-file", "/tmp/test.log"); err != nil {
+					panic(err)
+				}
+			},
+			wantSysLogFile:  "/tmp/test.log",
+			wantRepoLogFile: "/tmp/test.log",
+		},
 	}
 
 	for _, tt := range tests {
@@ -323,16 +339,19 @@ func TestPropagateRunFlags(t *testing.T) {
 			sysJobs = 0
 			sysTUI = false
 			sysNoTUI = false
+			sysLogFile = ""
 			repoUpdateDryRun = false
 			repoUpdateJobs = 0
 			repoUpdateTUI = false
 			repoUpdateNoTUI = false
+			repoUpdateLogFile = ""
 
 			cmd := &cobra.Command{Use: "run"}
 			cmd.Flags().BoolVarP(&runDryRun, "dry-run", "n", false, "")
 			cmd.Flags().IntVarP(&runJobs, "jobs", "j", 0, "")
 			cmd.Flags().BoolVar(&runTUI, "tui", false, "")
 			cmd.Flags().BoolVar(&runNoTUI, "no-tui", false, "")
+			cmd.Flags().StringVar(&runLogFile, "log-file", "", "")
 			tt.setFlags(cmd)
 
 			propagateRunFlags(cmd)
@@ -367,6 +386,14 @@ func TestPropagateRunFlags(t *testing.T) {
 
 			if repoUpdateNoTUI != tt.wantRepoNoTUI {
 				t.Errorf("repoUpdateNoTUI = %v, want %v", repoUpdateNoTUI, tt.wantRepoNoTUI)
+			}
+
+			if sysLogFile != tt.wantSysLogFile {
+				t.Errorf("sysLogFile = %v, want %v", sysLogFile, tt.wantSysLogFile)
+			}
+
+			if repoUpdateLogFile != tt.wantRepoLogFile {
+				t.Errorf("repoUpdateLogFile = %v, want %v", repoUpdateLogFile, tt.wantRepoLogFile)
 			}
 		})
 	}
