@@ -277,7 +277,9 @@ func TestPropagateRunFlags(t *testing.T) {
 		{
 			name: "dry-runフラグが伝播される",
 			setFlags: func(cmd *cobra.Command) {
-				_ = cmd.Flags().Set("dry-run", "true")
+				if err := cmd.Flags().Set("dry-run", "true"); err != nil {
+					panic(err)
+				}
 			},
 			wantSysDryRun:  true,
 			wantRepoDryRun: true,
@@ -285,7 +287,9 @@ func TestPropagateRunFlags(t *testing.T) {
 		{
 			name: "jobsフラグが伝播される",
 			setFlags: func(cmd *cobra.Command) {
-				_ = cmd.Flags().Set("jobs", "4")
+				if err := cmd.Flags().Set("jobs", "4"); err != nil {
+					panic(err)
+				}
 			},
 			wantSysJobs:  4,
 			wantRepoJobs: 4,
@@ -293,7 +297,9 @@ func TestPropagateRunFlags(t *testing.T) {
 		{
 			name: "tuiフラグが伝播される",
 			setFlags: func(cmd *cobra.Command) {
-				_ = cmd.Flags().Set("tui", "true")
+				if err := cmd.Flags().Set("tui", "true"); err != nil {
+					panic(err)
+				}
 			},
 			wantSysTUI:  true,
 			wantRepoTUI: true,
@@ -301,7 +307,9 @@ func TestPropagateRunFlags(t *testing.T) {
 		{
 			name: "no-tuiフラグが伝播される",
 			setFlags: func(cmd *cobra.Command) {
-				_ = cmd.Flags().Set("no-tui", "true")
+				if err := cmd.Flags().Set("no-tui", "true"); err != nil {
+					panic(err)
+				}
 			},
 			wantSysNoTUI:  true,
 			wantRepoNoTUI: true,
@@ -332,24 +340,31 @@ func TestPropagateRunFlags(t *testing.T) {
 			if sysDryRun != tt.wantSysDryRun {
 				t.Errorf("sysDryRun = %v, want %v", sysDryRun, tt.wantSysDryRun)
 			}
+
 			if repoUpdateDryRun != tt.wantRepoDryRun {
 				t.Errorf("repoUpdateDryRun = %v, want %v", repoUpdateDryRun, tt.wantRepoDryRun)
 			}
+
 			if sysJobs != tt.wantSysJobs {
 				t.Errorf("sysJobs = %v, want %v", sysJobs, tt.wantSysJobs)
 			}
+
 			if repoUpdateJobs != tt.wantRepoJobs {
 				t.Errorf("repoUpdateJobs = %v, want %v", repoUpdateJobs, tt.wantRepoJobs)
 			}
+
 			if sysTUI != tt.wantSysTUI {
 				t.Errorf("sysTUI = %v, want %v", sysTUI, tt.wantSysTUI)
 			}
+
 			if repoUpdateTUI != tt.wantRepoTUI {
 				t.Errorf("repoUpdateTUI = %v, want %v", repoUpdateTUI, tt.wantRepoTUI)
 			}
+
 			if sysNoTUI != tt.wantSysNoTUI {
 				t.Errorf("sysNoTUI = %v, want %v", sysNoTUI, tt.wantSysNoTUI)
 			}
+
 			if repoUpdateNoTUI != tt.wantRepoNoTUI {
 				t.Errorf("repoUpdateNoTUI = %v, want %v", repoUpdateNoTUI, tt.wantRepoNoTUI)
 			}
