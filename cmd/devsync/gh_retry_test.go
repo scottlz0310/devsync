@@ -273,10 +273,10 @@ func TestParseRetryAfter(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		stderr   string
-		wantDur  time.Duration
-		wantOK   bool
+		name    string
+		stderr  string
+		wantDur time.Duration
+		wantOK  bool
 	}{
 		{"秒数を正しくパース", "Retry-After: 30", 30 * time.Second, true},
 		{"ハイフン区切り", "Retry-After: 5", 5 * time.Second, true},

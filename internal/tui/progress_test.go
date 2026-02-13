@@ -298,8 +298,8 @@ func TestSummarizeStates(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                               string
-		jobs                               []jobProgress
+		name                                     string
+		jobs                                     []jobProgress
 		wantSuccess, wantFail, wantSkip, wantRun int
 	}{
 		{"空スライス", nil, 0, 0, 0, 0},
@@ -336,10 +336,10 @@ func TestTailLogs(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		logs     []logEntry
-		maxLines int
-		wantLen  int
+		name      string
+		logs      []logEntry
+		maxLines  int
+		wantLen   int
 		wantFirst string
 	}{
 		{"空ログ", nil, 5, 0, ""},
