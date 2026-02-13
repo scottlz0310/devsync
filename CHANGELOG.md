@@ -22,12 +22,14 @@
 - 全 Updater（apt/brew/cargo/flatpak/fwupdmgr/npm/pipx/scoop/snap/winget）に fake コマンド方式の Check/Update 統合テストを追加
 - `sys update` / `repo update` の E2E テストを追加（`--tui` フォールバック、`--no-tui`、矛盾フラグエラー、終了コード検証）
 - `sys update` / `repo update` の完了後に失敗ジョブのエラー詳細を表示する機能を追加（TUI/非TUI 両対応）
+- `devsync run` に `--dry-run` / `--tui` / `--no-tui` / `--jobs` フラグを追加（sys/repo に伝播）
 
 ### Changed
 
 - `devsync run` の Bitwarden 重複呼び出しを削減：シェル関数側で既にアンロック済み・環境変数読み込み済みの場合、Go バイナリ側で `bw status` / `bw list items` の再実行をスキップ（`DEVSYNC_ENV_LOADED` マーカーにより判定）
 - `devsync run` で `secrets.enabled` 設定を参照し、シークレット管理が無効な場合は bw 操作を完全にスキップするよう改善
 - `devsync run` で Bitwarden アンロック失敗時に処理を中断せず、シークレット読み込みをスキップしてシステム更新・リポジトリ同期を続行するよう改善
+- `devsync run` でシステム更新失敗時もリポジトリ同期を続行し、全フェーズ完了後にエラーをまとめて報告するよう改善
 - `DEVSYNC_DEBUG=1` 環境変数で bw コマンドの実行時刻・所要時間をタイムスタンプ付きで出力するデバッグログを追加
 - `repo update` のリポジトリ安全性チェック（isDirty/hasStash/isDetachedHEAD）を並列実行に変更し、リポジトリあたりの待ち時間を削減
 - `repo update` の安全性チェックと upstream 確認を fetch 完了後に並列実行するよう改善

@@ -16,6 +16,13 @@ var (
 	runRepoUpdateStep = runRepoUpdate
 )
 
+var (
+	runDryRun bool
+	runJobs   int
+	runTUI    bool
+	runNoTUI  bool
+)
+
 // runCmd は日次処理を実行するコマンドの定義です
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -28,12 +35,42 @@ var runCmd = &cobra.Command{
   2. Bitwarden データの同期（bw sync でキャッシュを最新化）
   3. 環境変数の読み込み（secrets.enabled=true かつ未読み込み時のみ）
   4. システム更新
-  5. リポジトリ同期`,
+  5. リポジトリ同期
+
+フラグ（--dry-run, --tui/--no-tui, --jobs）は sys update / repo update に伝播されます。`,
 	RunE: runDaily,
 }
 
 func init() {
 	rootCmd.AddCommand(runCmd)
+
+	runCmd.Flags().BoolVarP(&runDryRun, "dry-run", "n", false, "実際の更新は行わず、計画のみ表示（sys/repo に伝播）")
+	runCmd.Flags().IntVarP(&runJobs, "jobs", "j", 0, "並列実行数（sys/repo に伝播、0 は設定値を使用）")
+	runCmd.Flags().BoolVar(&runTUI, "tui", false, "Bubble Tea の進捗UIを表示（sys/repo に伝播）")
+	runCmd.Flags().BoolVar(&runNoTUI, "no-tui", false, "TUI 進捗表示を無効化（sys/repo に伝播）")
+}
+
+// propagateRunFlags は run コマンドのフラグを sys/repo のグローバルフラグ変数に伝播します。
+func propagateRunFlags(cmd *cobra.Command) {
+	if cmd.Flags().Changed("dry-run") {
+		sysDryRun = runDryRun
+		repoUpdateDryRun = runDryRun
+	}
+
+	if cmd.Flags().Changed("jobs") {
+		sysJobs = runJobs
+		repoUpdateJobs = runJobs
+	}
+
+	if cmd.Flags().Changed("tui") {
+		sysTUI = runTUI
+		repoUpdateTUI = runTUI
+	}
+
+	if cmd.Flags().Changed("no-tui") {
+		sysNoTUI = runNoTUI
+		repoUpdateNoTUI = runNoTUI
+	}
 }
 
 func runDaily(cmd *cobra.Command, args []string) error {
@@ -47,14 +84,20 @@ func runDaily(cmd *cobra.Command, args []string) error {
 		cfg = config.Default()
 	}
 
+	// run のフラグを子コマンドに伝播
+	propagateRunFlags(cmd)
+
 	// 1 & 2. Bitwarden のアンロック + 環境変数読み込み
 	runSecretsPhase(cfg)
+
+	var phaseErrors []phaseError
 
 	// 3. システム更新
 	fmt.Println("🛠  システムを更新中...")
 
 	if err := runSysUpdateStep(cmd, nil); err != nil {
-		return fmt.Errorf("システム更新に失敗しました: %w", err)
+		phaseErrors = append(phaseErrors, phaseError{Name: "システム更新", Err: err})
+		fmt.Fprintf(os.Stderr, "⚠️  システム更新でエラーが発生しましたが、続行します: %v\n", err)
 	}
 
 	fmt.Println()
@@ -63,14 +106,46 @@ func runDaily(cmd *cobra.Command, args []string) error {
 	fmt.Println("📦 リポジトリを同期中...")
 
 	if err := runRepoUpdateStep(cmd, nil); err != nil {
-		return fmt.Errorf("リポジトリ同期に失敗しました: %w", err)
+		phaseErrors = append(phaseErrors, phaseError{Name: "リポジトリ同期", Err: err})
 	}
 
 	fmt.Println()
 
+	// 統合サマリー
+	if len(phaseErrors) > 0 {
+		printPhaseErrors(phaseErrors)
+
+		return fmt.Errorf("%d 件のフェーズでエラーが発生しました", len(phaseErrors))
+	}
+
 	fmt.Println("✅ 開発環境は最新の状態です。")
 
 	return nil
+}
+
+// phaseError は run コマンド内の各フェーズで発生したエラーを保持します。
+type phaseError struct {
+	Name string
+	Err  error
+}
+
+// printPhaseErrors は各フェーズのエラーをまとめて表示します。
+func printPhaseErrors(errors []phaseError) {
+	if len(errors) == 0 {
+		return
+	}
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "❌ 以下のフェーズでエラーが発生しました:")
+
+	for i, pe := range errors {
+		prefix := "  ├──"
+		if i == len(errors)-1 {
+			prefix = "  └──"
+		}
+
+		fmt.Fprintf(os.Stderr, "%s %s: %v\n", prefix, pe.Name, pe.Err)
+	}
 }
 
 // runSecretsPhase は secrets 設定に応じて Bitwarden のアンロックと環境変数読み込みを実行します。
