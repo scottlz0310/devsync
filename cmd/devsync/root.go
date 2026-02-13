@@ -8,12 +8,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const appVersion = "v0.1.0-alpha"
+// version はビルド時に -ldflags で注入されます。
+// 例: go build -ldflags "-X main.version=v1.0.0"
+// GoReleaser がタグから自動設定します。
+var version = "dev"
 
 var rootCmd = &cobra.Command{
 	Use:           "devsync",
 	Short:         "DevSync: 開発環境運用ツール",
-	Version:       appVersion,
+	Version:       version,
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Long: `DevSync は開発環境の運用作業を統合する CLI ツールです。
