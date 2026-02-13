@@ -75,19 +75,28 @@ func TestRunDaily(t *testing.T) {
 			wantCalls: []string{"unlock", "sys_update", "repo_update"},
 		},
 		{
-			name:          "sys更新失敗で中断",
+			name:          "sys更新失敗でもrepo続行",
 			loadEnvStats:  &secret.LoadStats{Loaded: 1},
 			sysUpdateErr:  errors.New("sys failed"),
 			wantErr:       true,
-			wantErrSubstr: "システム更新に失敗しました",
-			wantCalls:     []string{"unlock", "load_env", "sys_update"},
+			wantErrSubstr: "1 件のフェーズでエラーが発生しました",
+			wantCalls:     []string{"unlock", "load_env", "sys_update", "repo_update"},
 		},
 		{
-			name:          "repo同期失敗で中断",
+			name:          "repo同期失敗",
 			loadEnvStats:  &secret.LoadStats{Loaded: 1},
 			repoUpdateErr: errors.New("repo failed"),
 			wantErr:       true,
-			wantErrSubstr: "リポジトリ同期に失敗しました",
+			wantErrSubstr: "1 件のフェーズでエラーが発生しました",
+			wantCalls:     []string{"unlock", "load_env", "sys_update", "repo_update"},
+		},
+		{
+			name:          "sys・repo両方失敗",
+			loadEnvStats:  &secret.LoadStats{Loaded: 1},
+			sysUpdateErr:  errors.New("sys failed"),
+			repoUpdateErr: errors.New("repo failed"),
+			wantErr:       true,
+			wantErrSubstr: "2 件のフェーズでエラーが発生しました",
 			wantCalls:     []string{"unlock", "load_env", "sys_update", "repo_update"},
 		},
 	}
@@ -224,5 +233,233 @@ func TestRunDaily_EnvAlreadyLoaded(t *testing.T) {
 	want := []string{"unlock", "sys_update", "repo_update"}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("runDaily() calls = %#v, want %#v", calls, want)
+	}
+}
+
+func TestPropagateRunFlags(t *testing.T) {
+	// 各グローバルフラグの退避・復元
+	origSysDryRun := sysDryRun
+	origSysJobs := sysJobs
+	origSysTUI := sysTUI
+	origSysNoTUI := sysNoTUI
+	origRepoDryRun := repoUpdateDryRun
+	origRepoJobs := repoUpdateJobs
+	origRepoTUI := repoUpdateTUI
+	origRepoNoTUI := repoUpdateNoTUI
+
+	t.Cleanup(func() {
+		sysDryRun = origSysDryRun
+		sysJobs = origSysJobs
+		sysTUI = origSysTUI
+		sysNoTUI = origSysNoTUI
+		repoUpdateDryRun = origRepoDryRun
+		repoUpdateJobs = origRepoJobs
+		repoUpdateTUI = origRepoTUI
+		repoUpdateNoTUI = origRepoNoTUI
+	})
+
+	tests := []struct {
+		name           string
+		setFlags       func(cmd *cobra.Command)
+		wantSysDryRun  bool
+		wantRepoDryRun bool
+		wantSysJobs    int
+		wantRepoJobs   int
+		wantSysTUI     bool
+		wantRepoTUI    bool
+		wantSysNoTUI   bool
+		wantRepoNoTUI  bool
+	}{
+		{
+			name:     "フラグ未指定時は伝播しない",
+			setFlags: func(cmd *cobra.Command) {},
+		},
+		{
+			name: "dry-runフラグが伝播される",
+			setFlags: func(cmd *cobra.Command) {
+				if err := cmd.Flags().Set("dry-run", "true"); err != nil {
+					panic(err)
+				}
+			},
+			wantSysDryRun:  true,
+			wantRepoDryRun: true,
+		},
+		{
+			name: "jobsフラグが伝播される",
+			setFlags: func(cmd *cobra.Command) {
+				if err := cmd.Flags().Set("jobs", "4"); err != nil {
+					panic(err)
+				}
+			},
+			wantSysJobs:  4,
+			wantRepoJobs: 4,
+		},
+		{
+			name: "tuiフラグが伝播される",
+			setFlags: func(cmd *cobra.Command) {
+				if err := cmd.Flags().Set("tui", "true"); err != nil {
+					panic(err)
+				}
+			},
+			wantSysTUI:  true,
+			wantRepoTUI: true,
+		},
+		{
+			name: "no-tuiフラグが伝播される",
+			setFlags: func(cmd *cobra.Command) {
+				if err := cmd.Flags().Set("no-tui", "true"); err != nil {
+					panic(err)
+				}
+			},
+			wantSysNoTUI:  true,
+			wantRepoNoTUI: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// リセット
+			sysDryRun = false
+			sysJobs = 0
+			sysTUI = false
+			sysNoTUI = false
+			repoUpdateDryRun = false
+			repoUpdateJobs = 0
+			repoUpdateTUI = false
+			repoUpdateNoTUI = false
+
+			cmd := &cobra.Command{Use: "run"}
+			cmd.Flags().BoolVarP(&runDryRun, "dry-run", "n", false, "")
+			cmd.Flags().IntVarP(&runJobs, "jobs", "j", 0, "")
+			cmd.Flags().BoolVar(&runTUI, "tui", false, "")
+			cmd.Flags().BoolVar(&runNoTUI, "no-tui", false, "")
+			tt.setFlags(cmd)
+
+			propagateRunFlags(cmd)
+
+			if sysDryRun != tt.wantSysDryRun {
+				t.Errorf("sysDryRun = %v, want %v", sysDryRun, tt.wantSysDryRun)
+			}
+
+			if repoUpdateDryRun != tt.wantRepoDryRun {
+				t.Errorf("repoUpdateDryRun = %v, want %v", repoUpdateDryRun, tt.wantRepoDryRun)
+			}
+
+			if sysJobs != tt.wantSysJobs {
+				t.Errorf("sysJobs = %v, want %v", sysJobs, tt.wantSysJobs)
+			}
+
+			if repoUpdateJobs != tt.wantRepoJobs {
+				t.Errorf("repoUpdateJobs = %v, want %v", repoUpdateJobs, tt.wantRepoJobs)
+			}
+
+			if sysTUI != tt.wantSysTUI {
+				t.Errorf("sysTUI = %v, want %v", sysTUI, tt.wantSysTUI)
+			}
+
+			if repoUpdateTUI != tt.wantRepoTUI {
+				t.Errorf("repoUpdateTUI = %v, want %v", repoUpdateTUI, tt.wantRepoTUI)
+			}
+
+			if sysNoTUI != tt.wantSysNoTUI {
+				t.Errorf("sysNoTUI = %v, want %v", sysNoTUI, tt.wantSysNoTUI)
+			}
+
+			if repoUpdateNoTUI != tt.wantRepoNoTUI {
+				t.Errorf("repoUpdateNoTUI = %v, want %v", repoUpdateNoTUI, tt.wantRepoNoTUI)
+			}
+		})
+	}
+}
+
+func TestPrintPhaseErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		errors []phaseError
+		want   string
+	}{
+		{
+			name:   "空のエラー一覧",
+			errors: nil,
+			want:   "",
+		},
+		{
+			name: "1件のエラー",
+			errors: []phaseError{
+				{Name: "システム更新", Err: errors.New("apt failed")},
+			},
+			want: "└──",
+		},
+		{
+			name: "複数エラー",
+			errors: []phaseError{
+				{Name: "システム更新", Err: errors.New("apt failed")},
+				{Name: "リポジトリ同期", Err: errors.New("git timeout")},
+			},
+			want: "├──",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := captureStderr(t, func() {
+				printPhaseErrors(tt.errors)
+			})
+
+			if tt.want == "" {
+				if output != "" {
+					t.Errorf("printPhaseErrors() output = %q, want empty", output)
+				}
+			} else {
+				if !strings.Contains(output, tt.want) {
+					t.Errorf("printPhaseErrors() output = %q, want substring %q", output, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestRunDaily_ConflictingTUIFlags(t *testing.T) {
+	originalSysUpdate := runSysUpdateStep
+	originalRepoUpdate := runRepoUpdateStep
+
+	t.Cleanup(func() {
+		runSysUpdateStep = originalSysUpdate
+		runRepoUpdateStep = originalRepoUpdate
+	})
+
+	testutil.SetTestHome(t, t.TempDir())
+
+	runSysUpdateStep = func(*cobra.Command, []string) error {
+		t.Fatal("sys_update should not be called with conflicting flags")
+		return nil
+	}
+
+	runRepoUpdateStep = func(*cobra.Command, []string) error {
+		t.Fatal("repo_update should not be called with conflicting flags")
+		return nil
+	}
+
+	cmd := &cobra.Command{Use: "run"}
+	cmd.Flags().BoolVarP(&runDryRun, "dry-run", "n", false, "")
+	cmd.Flags().IntVarP(&runJobs, "jobs", "j", 0, "")
+	cmd.Flags().BoolVar(&runTUI, "tui", false, "")
+	cmd.Flags().BoolVar(&runNoTUI, "no-tui", false, "")
+
+	if err := cmd.Flags().Set("tui", "true"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cmd.Flags().Set("no-tui", "true"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runDaily(cmd, nil)
+	if err == nil {
+		t.Fatal("runDaily() should return error for conflicting --tui and --no-tui")
+	}
+
+	if !strings.Contains(err.Error(), "--tui と --no-tui は同時指定できません") {
+		t.Errorf("runDaily() error = %q, want substring about conflicting flags", err.Error())
 	}
 }
