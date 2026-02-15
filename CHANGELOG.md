@@ -63,6 +63,7 @@
 - Linux 環境で TUI 使用時に標準出力メッセージと Bubble Tea の画面制御が混在して表示が崩れる問題を修正（TUI 起動前の stdout 出力を抑制）
 - `sys update --tui` / `repo update --tui` で TUI 完了後にテキストサマリー・完了メッセージが二重表示される問題を修正
 - `sys update --tui` で DryRun 通知・sudo 認証メッセージ・TUI 有効通知が TUI 前に出力されて表示が崩れる問題を修正
+- `pnpm` でグローバル manifest 不足時に JSON 解析エラーで失敗する問題を修正（通常更新時は自動初期化して1回再試行、DryRun時は案内のみ）
 
 ### Infrastructure
 

@@ -197,26 +197,29 @@ func TestPnpmUpdater_Check(t *testing.T) {
 
 func TestPnpmUpdater_Update(t *testing.T) {
 	tests := []struct {
-		name        string
-		mode        string
-		opts        UpdateOptions
-		expectErr   bool
-		errContains string
-		wantUpdated int
-		wantDryRun  bool
+		name                  string
+		mode                  string
+		opts                  UpdateOptions
+		expectErr             bool
+		errContains           string
+		wantUpdated           int
+		wantMessageContains   string
+		expectManifestCreated bool
+		expectManifestMissing bool
 	}{
 		{
-			name:        "DryRunは更新せず計画のみ返す",
-			mode:        "outdated_updates",
-			opts:        UpdateOptions{DryRun: true},
-			wantDryRun:  true,
-			wantUpdated: 0,
+			name:                "DryRunは更新せず計画のみ返す",
+			mode:                "outdated_updates",
+			opts:                UpdateOptions{DryRun: true},
+			wantUpdated:         0,
+			wantMessageContains: "DryRun",
 		},
 		{
-			name:        "通常更新成功",
-			mode:        "outdated_updates",
-			opts:        UpdateOptions{},
-			wantUpdated: 1,
+			name:                "通常更新成功",
+			mode:                "outdated_updates",
+			opts:                UpdateOptions{},
+			wantUpdated:         1,
+			wantMessageContains: "更新しました",
 		},
 		{
 			name:        "事前チェック失敗",
@@ -224,6 +227,22 @@ func TestPnpmUpdater_Update(t *testing.T) {
 			opts:        UpdateOptions{},
 			expectErr:   true,
 			errContains: "出力解析に失敗",
+		},
+		{
+			name:                  "manifest不足は通常更新時に自動初期化して再試行",
+			mode:                  "missing_manifest",
+			opts:                  UpdateOptions{},
+			wantUpdated:           0,
+			wantMessageContains:   "最新です",
+			expectManifestCreated: true,
+		},
+		{
+			name:                  "manifest不足はDryRunでは自動初期化せず案内",
+			mode:                  "missing_manifest",
+			opts:                  UpdateOptions{DryRun: true},
+			wantUpdated:           0,
+			wantMessageContains:   "更新確認をスキップしました",
+			expectManifestMissing: true,
 		},
 	}
 
@@ -235,6 +254,13 @@ func TestPnpmUpdater_Update(t *testing.T) {
 
 			t.Setenv("PATH", fakeDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 			t.Setenv("DEVSYNC_TEST_PNPM_MODE", tc.mode)
+
+			manifestPath := ""
+			if tc.mode == "missing_manifest" {
+				globalDir := filepath.Join(t.TempDir(), "pnpm-global")
+				t.Setenv("DEVSYNC_TEST_PNPM_GLOBAL_DIR", globalDir)
+				manifestPath = filepath.Join(globalDir, "package.json")
+			}
 
 			p := &PnpmUpdater{}
 			got, err := p.Update(context.Background(), tc.opts)
@@ -250,12 +276,21 @@ func TestPnpmUpdater_Update(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tc.wantUpdated, got.UpdatedCount)
 
-			if tc.wantDryRun {
-				assert.Contains(t, got.Message, "DryRun")
-				return
+			if tc.wantMessageContains != "" {
+				assert.Contains(t, got.Message, tc.wantMessageContains)
 			}
 
-			assert.Contains(t, got.Message, "更新しました")
+			if tc.expectManifestCreated {
+				if _, statErr := os.Stat(manifestPath); statErr != nil {
+					t.Fatalf("manifest が作成されていません: %v", statErr)
+				}
+			}
+
+			if tc.expectManifestMissing {
+				_, statErr := os.Stat(manifestPath)
+				assert.Error(t, statErr)
+				assert.True(t, os.IsNotExist(statErr), "manifest は作成されない想定です")
+			}
 		})
 	}
 }
@@ -273,7 +308,26 @@ func writeFakePnpmCommand(t *testing.T, dir string) {
 		content = `@echo off
 set subcmd=%1
 
+if "%subcmd%"=="root" (
+  if "%2"=="-g" (
+    if not "%DEVSYNC_TEST_PNPM_GLOBAL_DIR%"=="" (
+      echo %DEVSYNC_TEST_PNPM_GLOBAL_DIR%\node_modules
+      exit /b 0
+    )
+    echo C:\pnpm-global\node_modules
+    exit /b 0
+  )
+)
+
 if "%subcmd%"=="outdated" (
+  if "%DEVSYNC_TEST_PNPM_MODE%"=="missing_manifest" (
+    if exist "%DEVSYNC_TEST_PNPM_GLOBAL_DIR%\package.json" (
+      echo []
+      exit /b 0
+    )
+    echo ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND No package.json was found in "%DEVSYNC_TEST_PNPM_GLOBAL_DIR%".
+    exit /b 1
+  )
   if "%DEVSYNC_TEST_PNPM_MODE%"=="outdated_updates" (
     echo [{"name":"typescript","current":"5.1.0","latest":"5.2.0"}]
     exit /b 1
@@ -314,7 +368,26 @@ exit /b 0
 subcmd="$1"
 mode="${DEVSYNC_TEST_PNPM_MODE}"
 
+if [ "${subcmd}" = "root" ]; then
+  if [ "$2" = "-g" ]; then
+    if [ -n "${DEVSYNC_TEST_PNPM_GLOBAL_DIR}" ]; then
+      echo "${DEVSYNC_TEST_PNPM_GLOBAL_DIR}/node_modules"
+      exit 0
+    fi
+    echo "/tmp/pnpm-global/node_modules"
+    exit 0
+  fi
+fi
+
 if [ "${subcmd}" = "outdated" ]; then
+  if [ "${mode}" = "missing_manifest" ]; then
+    if [ -f "${DEVSYNC_TEST_PNPM_GLOBAL_DIR}/package.json" ]; then
+      echo '[]'
+      exit 0
+    fi
+    echo 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND No package.json was found in "'"${DEVSYNC_TEST_PNPM_GLOBAL_DIR}"'".'
+    exit 1
+  fi
   if [ "${mode}" = "outdated_updates" ]; then
     echo '[{"name":"typescript","current":"5.1.0","latest":"5.2.0"}]'
     exit 1
