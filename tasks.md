@@ -145,6 +145,7 @@
 - [x] 環境変数読み込み前に `bw sync` を実行してキャッシュを最新化（Issue #47）
 - [x] Linux 環境で TUI 使用時の表示崩れを修正（TUI 前後の stdout 出力抑制）（Issue #47）
 - [x] `sys update --tui` / `repo update --tui` で TUI 完了後のサマリー・完了メッセージ二重表示を修正
+- [x] `pnpm outdated -g --format json` で `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` 発生時の自己修復（通常更新のみ）と DryRun 案内を追加
 - [x] Windows (Winget/Scoop) 対応検証
 - [x] GoReleaser によるリリース自動化
 - [x] GitHub Actions CI/CD 設定

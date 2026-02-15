@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/scottlz0310/devsync/internal/config"
@@ -15,6 +16,11 @@ import (
 
 // PnpmUpdater は pnpm グローバルパッケージマネージャの実装です。
 type PnpmUpdater struct{}
+
+const (
+	pnpmNoImporterManifestErrorCode = "ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND"
+	pnpmGlobalManifestContent       = "{\"name\":\"pnpm-global\",\"private\":true}\n"
+)
 
 // 起動時にレジストリへ登録します。
 func init() {
@@ -40,19 +46,30 @@ func (p *PnpmUpdater) Configure(cfg config.ManagerConfig) error {
 }
 
 func (p *PnpmUpdater) Check(ctx context.Context) (*CheckResult, error) {
-	cmd := exec.CommandContext(ctx, "pnpm", "outdated", "-g", "--format", "json")
+	return p.check(ctx, false)
+}
 
-	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
+func (p *PnpmUpdater) check(ctx context.Context, allowManifestCreate bool) (*CheckResult, error) {
+	output, stderrOutput, err := p.runOutdatedCommand(ctx)
 
-	var stderr bytes.Buffer
+	if isPnpmNoImporterManifestOutput(output, stderrOutput) {
+		if allowManifestCreate {
+			if ensureErr := p.ensureGlobalManifest(ctx); ensureErr != nil {
+				return nil, fmt.Errorf("pnpm グローバル環境の初期化に失敗: %w", ensureErr)
+			}
 
-	cmd.Stderr = &stderr
+			output, stderrOutput, err = p.runOutdatedCommand(ctx)
+		}
 
-	output, err := cmd.Output()
+		if isPnpmNoImporterManifestOutput(output, stderrOutput) {
+			return nil, buildPnpmNoImporterManifestError(output, stderrOutput)
+		}
+	}
+
 	if err != nil && !isPnpmOutdatedExitErr(err) {
 		return nil, fmt.Errorf(
 			"pnpm outdated -g --format json の実行に失敗: %w",
-			buildCommandOutputErr(err, combineCommandOutputs(output, stderr.Bytes())),
+			buildCommandOutputErr(err, combineCommandOutputs(output, stderrOutput)),
 		)
 	}
 
@@ -60,7 +77,7 @@ func (p *PnpmUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	if parseErr != nil {
 		return nil, fmt.Errorf(
 			"pnpm outdated -g --format json の出力解析に失敗: %w",
-			buildCommandOutputErr(parseErr, combineCommandOutputs(output, stderr.Bytes())),
+			buildCommandOutputErr(parseErr, combineCommandOutputs(output, stderrOutput)),
 		)
 	}
 
@@ -70,9 +87,29 @@ func (p *PnpmUpdater) Check(ctx context.Context) (*CheckResult, error) {
 	}, nil
 }
 
+func (p *PnpmUpdater) runOutdatedCommand(ctx context.Context) (stdout, stderr []byte, err error) {
+	cmd := exec.CommandContext(ctx, "pnpm", "outdated", "-g", "--format", "json")
+
+	cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
+
+	var stderrBuf bytes.Buffer
+
+	cmd.Stderr = &stderrBuf
+
+	output, err := cmd.Output()
+
+	return output, stderrBuf.Bytes(), err
+}
+
 func (p *PnpmUpdater) Update(ctx context.Context, opts UpdateOptions) (*UpdateResult, error) {
-	checkResult, err := p.Check(ctx)
+	checkResult, err := p.check(ctx, !opts.DryRun)
 	if err != nil {
+		if opts.DryRun && isPnpmNoImporterManifestError(err) {
+			return &UpdateResult{
+				Message: "pnpm グローバル環境が未初期化のため、DryRun では更新確認をスキップしました（通常更新時は自動初期化して再試行します）",
+			}, nil
+		}
+
 		return nil, err
 	}
 
@@ -121,6 +158,89 @@ func isPnpmOutdatedExitErr(err error) bool {
 
 	// pnpm outdated は更新対象がある場合に 1 を返します。
 	return exitErr.ExitCode() == 1
+}
+
+func buildPnpmNoImporterManifestError(output, stderr []byte) error {
+	return fmt.Errorf(
+		"pnpm outdated -g --format json の実行に失敗: %w",
+		buildCommandOutputErr(
+			errors.New(pnpmNoImporterManifestErrorCode),
+			combineCommandOutputs(output, stderr),
+		),
+	)
+}
+
+func isPnpmNoImporterManifestOutput(output, stderr []byte) bool {
+	return strings.Contains(string(combineCommandOutputs(output, stderr)), pnpmNoImporterManifestErrorCode)
+}
+
+func isPnpmNoImporterManifestError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), pnpmNoImporterManifestErrorCode)
+}
+
+func (p *PnpmUpdater) ensureGlobalManifest(ctx context.Context) error {
+	globalDir, err := p.resolveGlobalDir(ctx)
+	if err != nil {
+		return err
+	}
+
+	manifestPath := filepath.Join(globalDir, "package.json")
+	if _, statErr := os.Stat(manifestPath); statErr == nil {
+		return nil
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return fmt.Errorf("pnpm グローバル manifest の状態確認に失敗: %w", statErr)
+	}
+
+	if mkdirErr := os.MkdirAll(globalDir, 0o755); mkdirErr != nil {
+		return fmt.Errorf("pnpm グローバルディレクトリの作成に失敗: %w", mkdirErr)
+	}
+
+	file, openErr := os.OpenFile(manifestPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if openErr != nil {
+		if errors.Is(openErr, os.ErrExist) {
+			return nil
+		}
+
+		return fmt.Errorf("pnpm グローバル manifest の作成に失敗: %w", openErr)
+	}
+
+	if _, writeErr := file.WriteString(pnpmGlobalManifestContent); writeErr != nil {
+		closeErr := file.Close()
+		if closeErr != nil {
+			return fmt.Errorf("pnpm グローバル manifest への書き込みに失敗: %s（さらにクローズにも失敗: %w）", writeErr.Error(), closeErr)
+		}
+
+		return fmt.Errorf("pnpm グローバル manifest への書き込みに失敗: %w", writeErr)
+	}
+
+	if closeErr := file.Close(); closeErr != nil {
+		return fmt.Errorf("pnpm グローバル manifest のクローズに失敗: %w", closeErr)
+	}
+
+	return nil
+}
+
+func (p *PnpmUpdater) resolveGlobalDir(ctx context.Context) (string, error) {
+	output, err := runCommandOutputWithLocaleC(
+		ctx,
+		"pnpm",
+		[]string{"root", "-g"},
+		"pnpm root -g の実行に失敗: %w",
+	)
+	if err != nil {
+		return "", err
+	}
+
+	globalRoot := filepath.Clean(strings.TrimSpace(string(output)))
+	if globalRoot == "" || globalRoot == "." {
+		return "", errors.New("pnpm root -g の出力が空です")
+	}
+
+	if filepath.Base(globalRoot) == "node_modules" {
+		return filepath.Dir(globalRoot), nil
+	}
+
+	return globalRoot, nil
 }
 
 func (p *PnpmUpdater) parseOutdatedJSON(output []byte) ([]PackageInfo, error) {
