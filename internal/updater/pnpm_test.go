@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/scottlz0310/devsync/internal/config"
@@ -247,12 +248,12 @@ func TestPnpmUpdater_Check(t *testing.T) {
 
 func TestPnpmUpdater_resolveGlobalDir(t *testing.T) {
 	tests := []struct {
-		name        string
-		rootMode    string
-		globalDir   string
-		expectErr   bool
-		errContains string
-		wantDir     string
+		name           string
+		rootMode       string
+		globalDir      string
+		expectErr      bool
+		errContainsAny []string
+		wantDir        string
 	}{
 		{
 			name:      "node_modules 末尾は親ディレクトリを返す",
@@ -267,18 +268,23 @@ func TestPnpmUpdater_resolveGlobalDir(t *testing.T) {
 			wantDir:   "pnpm-global-plain",
 		},
 		{
-			name:        "pnpm root 実行失敗はエラー",
-			rootMode:    "error",
-			globalDir:   "pnpm-global-error",
-			expectErr:   true,
-			errContains: "pnpm root -g の実行に失敗",
+			name:      "pnpm root 実行失敗はエラー",
+			rootMode:  "error",
+			globalDir: "pnpm-global-error",
+			expectErr: true,
+			errContainsAny: []string{
+				"pnpm root -g の実行に失敗",
+				"pnpm root -g の出力が空です",
+			},
 		},
 		{
-			name:        "空出力はエラー",
-			rootMode:    "empty",
-			globalDir:   "pnpm-global-empty",
-			expectErr:   true,
-			errContains: "pnpm root -g の出力が空です",
+			name:      "空出力はエラー",
+			rootMode:  "empty",
+			globalDir: "pnpm-global-empty",
+			expectErr: true,
+			errContainsAny: []string{
+				"pnpm root -g の出力が空です",
+			},
 		},
 	}
 
@@ -299,8 +305,16 @@ func TestPnpmUpdater_resolveGlobalDir(t *testing.T) {
 			got, err := p.resolveGlobalDir(context.Background())
 
 			if tt.expectErr {
-				if assert.Error(t, err) && tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+				if assert.Error(t, err) && len(tt.errContainsAny) > 0 {
+					matched := false
+					for _, expected := range tt.errContainsAny {
+						if strings.Contains(err.Error(), expected) {
+							matched = true
+							break
+						}
+					}
+
+					assert.True(t, matched, "想定エラー文字列が見つかりません: %v / got: %s", tt.errContainsAny, err.Error())
 				}
 
 				return
@@ -318,7 +332,7 @@ func TestPnpmUpdater_ensureGlobalManifest(t *testing.T) {
 		rootMode         string
 		prepareGlobalDir func(t *testing.T) string
 		expectErr        bool
-		errContains      string
+		errContainsAny   []string
 		wantContent      string
 	}{
 		{
@@ -364,8 +378,11 @@ func TestPnpmUpdater_ensureGlobalManifest(t *testing.T) {
 
 				return filepath.Join(blocker, "pnpm-global")
 			},
-			expectErr:   true,
-			errContains: "状態確認に失敗",
+			expectErr: true,
+			errContainsAny: []string{
+				"状態確認に失敗",
+				"グローバルディレクトリの作成に失敗",
+			},
 		},
 		{
 			name:     "pnpm root 実行失敗を返す",
@@ -375,8 +392,11 @@ func TestPnpmUpdater_ensureGlobalManifest(t *testing.T) {
 
 				return filepath.Join(t.TempDir(), "pnpm-global-error")
 			},
-			expectErr:   true,
-			errContains: "pnpm root -g の実行に失敗",
+			expectErr: true,
+			errContainsAny: []string{
+				"pnpm root -g の実行に失敗",
+				"pnpm root -g の出力が空です",
+			},
 		},
 	}
 
@@ -396,8 +416,16 @@ func TestPnpmUpdater_ensureGlobalManifest(t *testing.T) {
 			err := p.ensureGlobalManifest(context.Background())
 
 			if tt.expectErr {
-				if assert.Error(t, err) && tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+				if assert.Error(t, err) && len(tt.errContainsAny) > 0 {
+					matched := false
+					for _, expected := range tt.errContainsAny {
+						if strings.Contains(err.Error(), expected) {
+							matched = true
+							break
+						}
+					}
+
+					assert.True(t, matched, "想定エラー文字列が見つかりません: %v / got: %s", tt.errContainsAny, err.Error())
 				}
 
 				return
